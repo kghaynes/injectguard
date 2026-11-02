@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<header>
+  <img src="icons/icon48.png" alt="" class="logo">
+  <div class="hd">
+    <div class="name">InjectGuard</div>
+    <div id="site" class="site">—</div>
+  </div>
+  <button id="menuBtn" class="icon" title="Menu" aria-haspopup="true">☰</button>
+  <div id="menu" class="menu" hidden role="menu">
+    <button data-act="rescan" role="menuitem">Re-scan this page <kbd>Alt+Shift+S</kbd></button>
+    <button data-act="reveal" role="menuitem">Reveal hidden text <kbd>Alt+Shift+H</kbd></button>
+    <button data-act="hide" role="menuitem">Hide revealed text</button>
+    <button data-act="selection" role="menuitem">Scan selected text</button>
+    <hr>
+    <button data-act="trust" role="menuitem">Always trust this site</button>
+    <button data-act="untrust" role="menuitem">Stop trusting this site</button>
+    <hr>
+    <button data-act="copy" role="menuitem">Copy findings as text</button>
+    <button data-act="export" role="menuitem">Export page report (JSON)</button>
+    <hr>
+    <button data-act="options" role="menuitem">Options &amp; pairing…</button>
+    <button data-act="help" role="menuitem">How detection works</button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab active" data-tab="page" role="tab">This page</button>
+  <button class="tab" data-tab="history" role="tab">Alerts</button>
+  <button class="tab" data-tab="engine" role="tab">Protection</button>
+</nav>
+
+<main>
+  <section id="tab-page" class="pane active">
+    <div id="verdict" class="verdict"><span class="pill">…</span><span class="score"></span><span class="meta"></span></div>
+    <div class="actions">
+      <button id="rescan">Re-scan</button>
+      <button id="reveal" class="primary">Reveal hidden text</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="showInfo"><span>Show hidden text with no instructions (<span id="infoCount">0</span>)</span></label>
+    <div id="findings"></div>
+  </section>
+
+  <section id="tab-history" class="pane">
+    <div class="row"><span class="muted">Pages flagged in this browser</span><button id="clearHist" class="link">Clear</button></div>
+    <div id="history"></div>
+  </section>
+
+  <section id="tab-engine" class="pane">
+    <div id="engine" class="card"></div>
+    <label class="chk"><input type="checkbox" id="autoScan"> Scan every page automatically</label>
+    <label class="chk"><input type="checkbox" id="showBanner"> Show a warning banner on risky pages</label>
+    <label class="chk"><input type="checkbox" id="notify"> Desktop notification for malicious pages</label>
+    <label class="chk"><input type="checkbox" id="useEngine"> Use the desktop engine when it's running</label>
+    <div class="row"><span class="muted" id="trustState"></span></div>
+    <button id="openOptions" class="link">All options &amp; pairing…</button>
+  </section>
+</main>
+<footer id="foot" class="muted"></footer>
+<script src="rules.js"></script>
+<script src="detector.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,226 @@
+// InjectGuard rule engine for the browser. Same logic as injectguard/rules.py, same rules (rules.js).
+// Works in content scripts, the popup, and the service worker.
+(function (root) {
+  const R = root.IG_RULES;
+  const MULT = R.visibility_multiplier;
+  const TH = R.thresholds;
+  const PHRASE = R.phrase_rules.map(r => ({ ...r, rx: new RegExp(r.pattern, 'is' + (r.flags || '').replace(/[^m]/g, '')) }));
+
+  const ZW = new Set([0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF, 0x180E, 0x00AD, 0x034F, 0x2061, 0x2062, 0x2063, 0x2064]);
+  const isBidi = cp => (cp >= 0x202A && cp <= 0x202E) || (cp >= 0x2066 && cp <= 0x2069) || cp === 0x200E || cp === 0x200F || cp === 0x061C;
+  const isTag = cp => cp >= 0xE0000 && cp < 0xE0080;
+  const isVar = cp => (cp >= 0xFE00 && cp < 0xFE10) || (cp >= 0xE0100 && cp < 0xE01F0);
+  const isInvisible = cp => ZW.has(cp) || isBidi(cp) || isTag(cp) || isVar(cp);
+
+  const HOMO = {
+    'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'у': 'y', 'х': 'x', 'і': 'i', 'ј': 'j', 'ѕ': 's', 'ԁ': 'd', 'ɡ': 'g',
+    'һ': 'h', 'ӏ': 'l', 'ԛ': 'q', 'ԝ': 'w', 'ν': 'v', 'ο': 'o', 'α': 'a', 'ε': 'e', 'ι': 'i', 'κ': 'k', 'ρ': 'p', 'τ': 't',
+    'υ': 'u', 'χ': 'x', 'А': 'a', 'В': 'b', 'Е': 'e', 'К': 'k', 'М': 'm', 'Н': 'h', 'О': 'o', 'Р': 'p', 'С': 'c', 'Т': 't',
+    'Х': 'x', 'І': 'i', 'Α': 'a', 'Β': 'b', 'Ε': 'e', 'Η': 'h', 'Ι': 'i', 'Κ': 'k', 'Μ': 'm', 'Ν': 'n', 'Ο': 'o', 'Ρ': 'p',
+    'Τ': 't', 'Χ': 'x'
+  };
+
+  // Lower-case, NFKC, drop invisible chars, fold look-alikes, collapse spaces. idx maps each output char to a raw index.
+  function normalize(raw) {
+    const out = [], idx = [];
+    let prevSpace = true, i = 0;
+    for (const ch of raw) {
+      const cp = ch.codePointAt(0);
+      const at = i;
+      i += ch.length;
+      if (isInvisible(cp)) continue;
+      for (let c of ch.normalize('NFKC')) {
+        c = (HOMO[c] || c).toLowerCase();
+        if (/\s/.test(c)) {
+          if (prevSpace) continue;
+          c = ' ';
+          prevSpace = true;
+        } else prevSpace = false;
+        for (const u of c) { out.push(u); idx.push(at); }
+      }
+    }
+    return [out.join(''), idx];
+  }
+
+  function stripInvisible(s) {
+    let o = '';
+    for (const ch of s) if (!isInvisible(ch.codePointAt(0))) o += ch;
+    return o;
+  }
+
+  function excerpt(raw, a0, b0, ctx = 60) {
+    const a = Math.max(0, a0 - ctx), b = Math.min(raw.length, b0 + ctx);
+    let s = stripInvisible(raw.slice(a, b)).replace(/\s+/g, ' ').trim();
+    if (a > 0) s = '…' + s;
+    if (b < raw.length) s += '…';
+    return s.slice(0, 300);
+  }
+
+  const QUOTES = `"'“”‘’«»\``;
+  function isQuoted(raw, s, e) {
+    const before = raw.slice(Math.max(0, s - 30), s), after = raw.slice(e, e + 40);
+    let qb = -1;
+    for (const q of QUOTES) qb = Math.max(qb, before.lastIndexOf(q));
+    if (qb === -1) return false;
+    const tail = before.slice(qb + 1);
+    for (const q of QUOTES) if (tail.includes(q)) return false;
+    for (const q of QUOTES) if (after.includes(q)) return true;
+    return false;
+  }
+
+  const score = (w, vis) => Math.min(100, Math.round(w * (MULT[vis] || 1)));
+
+  function phrase(raw, seg, extra = 0, prefix = '', famOverride = null, titlePrefix = '') {
+    const [norm, idx] = normalize(raw);
+    const found = [];
+    for (const r of PHRASE) {
+      r.rx.lastIndex = 0;
+      const text = r.raw ? raw : norm;
+      const m = r.rx.exec(text);
+      if (!m) continue;
+      let rs, re;
+      if (r.raw) { rs = m.index; re = m.index + m[0].length; } else {
+        rs = idx[m.index] ?? 0;
+        const last = m.index + m[0].length - 1;
+        re = last < idx.length ? idx[last] + 1 : raw.length;
+      }
+      let w = r.weight + extra, title = titlePrefix + r.title, explain = r.explain;
+      let hasInv = false;
+      if (!r.raw) for (const ch of raw.slice(rs, re)) if (isInvisible(ch.codePointAt(0))) { hasInv = true; break; }
+      if (hasInv) {
+        w += 20; title += ' (split with invisible characters)';
+        explain += ' Invisible characters were inserted inside the words to slip past filters.';
+      } else if (seg.visibility === 'visible' && isQuoted(raw, rs, re)) {
+        w = Math.floor(w * 0.4); title += ' (quoted - likely a discussion)';
+      }
+      found.push({
+        rule_id: prefix + r.id, family: famOverride || r.family, title, explain, score: score(w, seg.visibility),
+        excerpt: excerpt(raw, rs, re), location: seg.location, visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
+      });
+    }
+    return found;
+  }
+
+  function checkUnicode(raw, seg) {
+    const f = [], extra = [];
+    let zw = 0, bidi = 0, tags = [], first = { zw: -1, bidi: -1, tag: -1 }, i = 0;
+    const body = raw.startsWith('﻿') ? 1 : 0;
+    for (const ch of raw) {
+      const cp = ch.codePointAt(0);
+      if (ZW.has(cp) && i >= body) { zw++; if (first.zw < 0) first.zw = i; }
+      if (isBidi(cp)) { bidi++; if (first.bidi < 0) first.bidi = i; }
+      if (isTag(cp)) { tags.push(cp); if (first.tag < 0) first.tag = i; }
+      i += ch.length;
+    }
+    if (tags.length) {
+      const dec = tags.map(c => c - 0xE0000).filter(c => c >= 0x20 && c <= 0x7E).map(c => String.fromCharCode(c)).join('');
+      f.push({
+        rule_id: 'UNI-TAG', family: 'invisible_unicode', title: 'Hidden message in invisible Unicode tag characters',
+        explain: 'Unicode tag characters (U+E0000 block) show nothing on screen but many AI models read them as normal letters. This is called ASCII smuggling.',
+        score: Math.min(100, 50 + (dec.length > 10 ? 20 : 0)), excerpt: dec ? 'Decoded: ' + dec.slice(0, 250) : excerpt(raw, first.tag, first.tag + 1),
+        location: seg.location, visibility: seg.visibility, hidden_reason: 'invisible Unicode tags'
+      });
+      if (dec.trim()) extra.push({ text: dec, location: seg.location + ' (decoded tag characters)', visibility: 'hidden', hidden_reason: 'invisible Unicode tags' });
+    }
+    if (zw >= 3) f.push({
+      rule_id: 'UNI-ZW', family: 'invisible_unicode', title: `${zw} zero-width characters`,
+      explain: 'Zero-width characters are invisible. They are used to split banned words so filters miss them, or to watermark text.',
+      score: zw < 20 ? 20 : 30, excerpt: excerpt(raw, first.zw, first.zw + 1), location: seg.location, visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
+    });
+    if (bidi) f.push({
+      rule_id: 'UNI-BIDI', family: 'invisible_unicode', title: `${bidi} text-direction override characters`,
+      explain: 'Bidirectional override characters make text display in a different order than the AI reads it.',
+      score: 25, excerpt: excerpt(raw, first.bidi, first.bidi + 1), location: seg.location, visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
+    });
+    return [f, extra];
+  }
+
+  const B64 = /(?<![A-Za-z0-9+/=])[A-Za-z0-9+/]{24,}={0,2}(?![A-Za-z0-9+/=])/g;
+  function checkBase64(raw, seg) {
+    const out = [];
+    B64.lastIndex = 0;
+    let m, n = 0;
+    while ((m = B64.exec(raw)) && n++ < 200) {
+      const blob = m[0];
+      if (blob.length > 20000) continue;
+      let txt;
+      try {
+        const bin = atob(blob + '='.repeat((4 - blob.length % 4) % 4));
+        txt = new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+      } catch (e) { continue; }
+      if (!txt) continue;
+      let printable = 0;
+      for (const c of txt) if (!/[\x00-\x08\x0e-\x1f\x7f]/.test(c)) printable++;
+      if (printable / txt.length < 0.9 || !/[A-Za-z]{3,} [A-Za-z]{2,}/.test(txt)) continue;
+      out.push(...phrase(txt, { ...seg, location: seg.location + ' (decoded Base64)' }, 10, 'B64:', 'encoded_payload', 'Base64-encoded: '));
+    }
+    return out;
+  }
+
+  function checkHomoglyphs(raw, seg) {
+    const words = raw.match(/\p{L}{3,}/gu) || [];
+    const mixed = words.filter(w => /[A-Za-z]/.test(w) && /[Ͱ-ϿЀ-ӿ]/.test(w));
+    if (mixed.length < 2) return [];
+    return [{
+      rule_id: 'HOM-001', family: 'homoglyph', title: `${mixed.length} words mix Latin with look-alike letters`,
+      explain: 'Words that mix English letters with Cyrillic or Greek look-alikes are a trick to slip past keyword filters.',
+      score: mixed.length < 5 ? 15 : 25, excerpt: mixed.slice(0, 8).join(', '), location: seg.location,
+      visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
+    }];
+  }
+
+  function scanSegments(segments) {
+    const findings = [];
+    const queue = segments.slice();
+    let n = 0;
+    while (queue.length) {
+      const seg = queue.shift();
+      const raw = seg.text || '';
+      if (!raw.trim()) continue;
+      n++;
+      const [uni, extra] = checkUnicode(raw, seg);
+      findings.push(...uni);
+      queue.push(...extra);
+      const hits = [...phrase(raw, seg), ...checkBase64(raw, seg), ...checkHomoglyphs(raw, seg)];
+      findings.push(...hits);
+      if (seg.visibility === 'hidden' && !hits.length && !uni.length && normalize(raw)[0].length >= 40) {
+        findings.push({
+          rule_id: 'HID-INFO', family: 'hidden_text', title: 'Hidden text (no instructions found)',
+          explain: 'This text is hidden from people but readable by AI tools. Nothing in it matched an injection rule.',
+          score: 8, excerpt: excerpt(raw, 0, Math.min(raw.length, 200), 0), location: seg.location,
+          visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
+        });
+      }
+    }
+    return [dedupe(findings), n];
+  }
+
+  function dedupe(fs) {
+    const best = new Map();
+    for (const f of fs) {
+      const k = f.rule_id + '|' + f.location + '|' + f.excerpt.slice(0, 80);
+      if (!best.has(k) || best.get(k).score < f.score) best.set(k, f);
+    }
+    return [...best.values()].sort((a, b) => b.score - a.score);
+  }
+
+  function overall(fs) {
+    if (!fs.length) return [0, 'clean'];
+    const s = fs.map(f => f.score).sort((a, b) => b - a);
+    const extra = s.slice(1).filter(x => x >= TH.suspicious).length;
+    const sc = Math.min(100, s[0] + 8 * Math.min(extra, 6));
+    return [sc, sc >= TH.malicious ? 'malicious' : sc >= TH.suspicious ? 'suspicious' : 'clean'];
+  }
+
+  function scan(target, kind, segments) {
+    const t0 = Date.now();
+    const [findings, n] = scanSegments(segments);
+    const [sc, verdict] = overall(findings);
+    return {
+      target, kind, verdict, score: sc, findings, segments_scanned: n, errors: [], duration_ms: Date.now() - t0,
+      scanned_at: new Date().toISOString(), engine: 'browser'
+    };
+  }
+
+  root.InjectGuard = { scan, scanSegments, overall, normalize, thresholds: TH };
+})(typeof self !== 'undefined' ? self : globalThis);

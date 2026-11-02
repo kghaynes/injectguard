@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "injectguard"
+version = "0.0.2"
+description = "Finds hidden prompt injections in web pages and documents (PDF, Office, HTML, Markdown, email)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "CyberCloudAI Consulting LLC"}]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://github.com/kghaynes/injectguard"
+dependencies = [
+  "beautifulsoup4>=4.12",
+  "lxml>=5",
+  "pymupdf>=1.24",
+  "openpyxl>=3.1",
+  "python-pptx>=0.6.23",
+  "watchdog>=4",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.6"]
+msg = ["extract-msg>=0.48"]
+all = ["PySide6>=6.6", "extract-msg>=0.48"]
+dev = ["pytest>=8", "reportlab>=4", "python-docx>=1.1", "playwright>=1.45"]
+
+[project.scripts]
+injectguard = "injectguard.cli:main"
+
+[project.gui-scripts]
+injectguard-gui = "injectguard.gui.app:run"
+
+[tool.setuptools.packages.find]
+include = ["injectguard*"]
+
+[tool.setuptools.package-data]
+injectguard = ["rules.json"]
