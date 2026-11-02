@@ -68,7 +68,7 @@ cd injectguard
 source .venv/bin/activate
 pip install -U pip
 pip install -e ".[all,dev]"
-injectguard --version          # prints 0.0.3
+injectguard --version          # prints 0.0.4
 ```
 
 `.[all,dev]` installs the desktop app, Outlook `.msg` support, and the test tools. For a smaller install without
@@ -310,6 +310,7 @@ python tests/make_samples.py /tmp/igtest   # build the malicious + clean sample 
 
 ## Changelog
 
+- **0.0.4** — Fixes pip install (packaging metadata error introduced in 0.0.2).
 - **0.0.3** — Fewer false positives on real sites (found on LinkedIn): hidden copies of visible text count as
   visible; layout-style hiding scores lower than camouflage; tighter rules for "you are now…", "never show… anyone",
   "confidential message", data-sending (now needs an outside address), and quoted discussions. **Reveal hidden
