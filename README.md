@@ -68,7 +68,7 @@ cd injectguard
 source .venv/bin/activate
 pip install -U pip
 pip install -e ".[all,dev]"
-injectguard --version          # prints 0.0.2
+injectguard --version          # prints 0.0.3
 ```
 
 `.[all,dev]` installs the desktop app, Outlook `.msg` support, and the test tools. For a smaller install without
@@ -147,11 +147,12 @@ injectguard scan /tmp/igtest/malicious -q    # 16 files: 15 MALICIOUS, 1 SUSPICI
 injectguard scan /tmp/igtest/clean -q        # summary only: 9 clean; exit code 0
 cp /tmp/igtest/malicious/white_text.pdf ~/Downloads/   # notification within ~2 seconds
 injectguard history --limit 3                # newest row shows source "realtime"
-pytest -q                                    # 53 passed
+pytest -q                                    # 121 passed
 ```
 
 Then open `tests/web/malicious.html` in Chrome: the toolbar icon shows a red **!**, a warning banner appears, and
-**Reveal hidden text** outlines the hidden passages in red.
+**Reveal hidden text** outlines the hidden passages in red. `tests/web/spa.html` (built like a social-media feed, full
+of hidden layout copies) should stay clean.
 
 Delete the test file from Downloads afterwards (or restore it from **View → Quarantine** if auto-quarantine is on).
 
@@ -253,9 +254,16 @@ Exit codes: **0** clean · **1** suspicious · **2** malicious · **3** error.
 
 **Scoring**
 
-- Finding score = rule weight × where it was found: hidden ×2.0, comment/metadata ×1.5, visible ×1.0.
-- Phrases split up with invisible characters: +20. Phrases in quotes in visible text (articles *about* injection):
-  cut to 40%.
+- Finding score = rule weight × where it was found:
+  - hidden by camouflage (same-colour text, zero-size font, transparency, off the PDF page, Word "Hidden"): ×2.0
+  - hidden the way screen-reader text is (off-screen, clipped, 1-pixel box): ×1.5
+  - hidden the way normal page layouts are (`display:none`, `aria-hidden`, collapsed menus, hidden rows/sheets): ×1.25
+  - comments and metadata: ×1.5 · visible: ×1.0
+- Hidden text that also appears visibly on the page (mobile/desktop duplicates) is scored as visible.
+- Phrases split up with invisible characters: +20. Phrases inside quotation marks in visible text (someone quoting
+  an attack): cut to 40%.
+- Weak signals (asks to run a tool, "always recommend", "the summary must say") score low on their own and mainly add
+  weight when they appear alongside stronger ones.
 - File score = top finding + 8 for each extra finding scoring 20 or more (max 100).
 - **Clean** under 20 · **Suspicious** 20–59 · **Malicious** 60+.
 - Local AI check (optional): "injection" adds 25; "benign" cuts the score to 40%.
@@ -295,10 +303,18 @@ python tools/sync_rules.py && pytest -q
 ## Tests
 
 ```bash
-pytest -q                                  # 53 tests: all formats, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
+pytest -q                                  # 121 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
 python tests/browser_e2e.py /tmp/shots     # real Chromium with the extension loaded and paired (needs: playwright install chromium)
 python tests/make_samples.py /tmp/igtest   # build the malicious + clean sample files
 ```
+
+## Changelog
+
+- **0.0.3** — Fewer false positives on real sites (found on LinkedIn): hidden copies of visible text count as
+  visible; layout-style hiding scores lower than camouflage; tighter rules for "you are now…", "never show… anyone",
+  "confidential message", data-sending (now needs an outside address), and quoted discussions. **Reveal hidden
+  text** shows only real findings. Added 68 false-positive tests.
+- **0.0.2** — First public release.
 
 ## Known limits
 

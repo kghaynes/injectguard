@@ -219,6 +219,7 @@
     let n = 0, first = null;
     const idxOf = loc => { const m = /\[(\d+)\]/.exec(loc || ''); return m ? +m[1] : -1; };
     for (const f of lastResult.findings) {
+      if (f.score < self.InjectGuard.thresholds.suspicious) continue;   // skip "hidden, no instructions" notes
       const el = elements[idxOf(f.location)];
       if (!el || el === document.body || el.nodeType !== 1) continue;
       if (el.hasAttribute(IG_ATTR + '-reveal') || el.hasAttribute(IG_ATTR + '-mark')) continue;  // findings are sorted: keep the top one

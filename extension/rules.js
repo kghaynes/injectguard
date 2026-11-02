@@ -11,6 +11,35 @@ self.IG_RULES = {
   "suspicious": 20,
   "malicious": 60
  },
+ "hidden_reason_multiplier": [
+  {
+   "mult": 1.25,
+   "why": "Normal page-layout hiding: menus, responsive duplicates, collapsed sections",
+   "prefixes": [
+    "display:none",
+    "visibility:hidden",
+    "content-visibility",
+    "hidden attribute",
+    "aria-hidden",
+    "inside <noscript>",
+    "inside <template>",
+    "hidden row",
+    "hidden column",
+    "sheet is"
+   ]
+  },
+  {
+   "mult": 1.5,
+   "why": "Screen-reader-only text uses these tricks too",
+   "prefixes": [
+    "moved off-screen",
+    "clipped to nothing",
+    "zero-size box",
+    "text-indent off-screen"
+   ]
+  }
+ ],
+ "duplicate_min_chars": 20,
  "phrase_rules": [
   {
    "id": "OVR-001",
@@ -18,7 +47,7 @@ self.IG_RULES = {
    "weight": 45,
    "title": "Tells the AI to ignore its instructions",
    "explain": "Classic injection: asks the AI to drop the rules or the user's request it was given.",
-   "pattern": "\\b(ignore|disregard|forget|override|bypass|skip|discard)\\b.{0,40}\\b(previous|prior|above|earlier|preceding|system|original|initial|all|any|your)\\b.{0,25}\\b(instructions?|prompts?|rules|directions|guidelines|guardrails|context|messages?|programming)\\b"
+   "pattern": "\\b(ignore|disregard|forget|override|bypass|discard)\\b.{0,40}\\b(previous|prior|above|earlier|preceding|system|original|initial|all|any|your)\\b.{0,25}\\b(instructions?|prompts?|directions|guidelines|guardrails|directives|programming|rules)\\b"
   },
   {
    "id": "OVR-002",
@@ -34,12 +63,12 @@ self.IG_RULES = {
    "weight": 30,
    "title": "Tells the AI to stop following its rules",
    "explain": "Asks the AI to stop obeying its operator or user.",
-   "pattern": "\\b(stop|cease|quit) (following|obeying|adhering to)\\b"
+   "pattern": "\\b(stop|cease|quit) (following|obeying|adhering to)\\b.{0,25}\\b(instructions|rules|guidelines|system prompt|your (operator|user|developer))\\b"
   },
   {
    "id": "OVR-004",
    "family": "override",
-   "weight": 20,
+   "weight": 12,
    "title": "Redirects the AI from now on",
    "explain": "Sets a lasting rule for the AI's future behavior.",
    "pattern": "\\bfrom now on,? (you|your|always|only|never)\\b"
@@ -47,7 +76,7 @@ self.IG_RULES = {
   {
    "id": "OVR-005",
    "family": "override",
-   "weight": 25,
+   "weight": 12,
    "title": "Dictates what the AI must conclude",
    "explain": "Tries to force the AI's summary, rating, or recommendation.",
    "pattern": "\\b(summary|summarize|recommendation|recommend|rating|rate|review|evaluation|assessment|score)\\b.{0,40}\\b(must|should|has to|needs to) (say|state|be|include|mention|conclude|read)\\b"
@@ -55,7 +84,7 @@ self.IG_RULES = {
   {
    "id": "OVR-006",
    "family": "override",
-   "weight": 25,
+   "weight": 12,
    "title": "Pushes a hiring or purchase decision",
    "explain": "Common in resumes and vendor documents aimed at AI screeners.",
    "pattern": "\\b(hire|select|approve|shortlist|advance|choose|buy) (this|the following) (candidate|applicant|vendor|product|company|supplier|proposal)\\b|\\b(this|the) (candidate|applicant) is (the )?(best|perfect|most qualified|ideal|exceptionally qualified)\\b"
@@ -63,7 +92,7 @@ self.IG_RULES = {
   {
    "id": "OVR-007",
    "family": "override",
-   "weight": 25,
+   "weight": 12,
    "title": "Forces the AI to always recommend something",
    "explain": "Biases the AI's answer toward a product, site, or person.",
    "pattern": "\\b(always|only|exclusively) (recommend|suggest|promote|mention|link to)\\b"
@@ -79,7 +108,7 @@ self.IG_RULES = {
   {
    "id": "ROL-002",
    "family": "role_spoof",
-   "weight": 15,
+   "weight": 12,
    "title": "Line starts with a chat role label",
    "explain": "Text formatted like a system or assistant message can be mistaken for a real one.",
    "flags": "m",
@@ -91,7 +120,7 @@ self.IG_RULES = {
    "weight": 30,
    "title": "Tries to change who the AI is",
    "explain": "Assigns the AI a new identity, often one without safety rules.",
-   "pattern": "\\byou are (now|no longer|actually)\\b|\\b(act|pretend|behave|roleplay) as (if you (are|were) )?(an? )?(unrestricted|unfiltered|jailbroken|dan|evil|different|uncensored)\\b"
+   "pattern": "\\byou are (now|no longer) (an? )?(unrestricted|unfiltered|jailbroken|uncensored|dan\\b|evil|free (from|of)|bound by|required to|restricted|limited by|in (developer|god|dan|debug) mode|acting as|operating as)|\\b(act|pretend|behave|roleplay) as (if you (are|were) )?(an? )?(unrestricted|unfiltered|jailbroken|dan|evil|uncensored)\\b"
   },
   {
    "id": "ROL-004",
@@ -113,9 +142,9 @@ self.IG_RULES = {
    "id": "EXF-001",
    "family": "exfiltration",
    "weight": 40,
-   "title": "Asks to send private data somewhere",
+   "title": "Asks to send private data to an outside address",
    "explain": "Tries to get the AI to leak secrets, files, or the conversation.",
-   "pattern": "\\b(send|forward|email|e-mail|post|upload|transmit|exfiltrate|leak|share|copy)\\b.{0,60}\\b(passwords?|credentials?|api keys?|tokens?|secrets?|cookies?|conversation|chat history|emails?|inbox|files|documents|contacts|personal (data|information)|ssn|social security|credit card|system prompt)\\b"
+   "pattern": "\\b(send|forward|email|e-mail|post|upload|transmit|exfiltrate|leak|copy)\\b.{0,60}\\b(passwords?|credentials?|api keys?|tokens?|secrets?|cookies?|conversation|chat history|browsing history|emails?|inbox|files|documents|contacts|personal (data|information)|ssn|social security|credit card|system prompt)\\b.{0,40}\\b(to|into)\\s+(https?://\\S+|[\\w.+-]+@[\\w-]+\\.[\\w.]+|[\\w-]+\\.(com|net|org|io|ru|cn|xyz|example|top|site|info)\\b)"
   },
   {
    "id": "EXF-002",
@@ -132,12 +161,12 @@ self.IG_RULES = {
    "weight": 30,
    "title": "Asks the AI to reveal its instructions",
    "explain": "Tries to extract the AI's system prompt or hidden setup.",
-   "pattern": "\\b(reveal|print|repeat|output|show|display|leak|tell me) (your|the) (system prompt|initial prompt|hidden instructions|instructions|prompt|configuration)\\b"
+   "pattern": "\\b(reveal|print|repeat|output|show|display|leak|tell me)\\b (your|the) (system prompt|initial prompt|hidden instructions|original instructions|developer message)\\b|\\b(reveal|repeat|leak|print) your (instructions|prompt|rules)\\b"
   },
   {
    "id": "EXF-004",
    "family": "exfiltration",
-   "weight": 15,
+   "weight": 12,
    "title": "Tells the AI to visit a web address",
    "explain": "Directs an AI agent to load an outside URL, which can leak data or pull in more instructions.",
    "pattern": "\\b(visit|fetch|open|navigate to|go to|load|browse to|request|ping|call)\\b.{0,30}https?://"
@@ -145,7 +174,7 @@ self.IG_RULES = {
   {
    "id": "TOL-001",
    "family": "tool_abuse",
-   "weight": 20,
+   "weight": 12,
    "title": "Asks the AI to run a tool or command",
    "explain": "AI agents with tools can be steered into actions the user never asked for.",
    "pattern": "\\b(run|execute|call|invoke|use|trigger)\\b.{0,30}\\b(the )?(tool|function|command|shell|terminal|script|plugin|api|code interpreter)\\b"
@@ -161,7 +190,7 @@ self.IG_RULES = {
   {
    "id": "TOL-003",
    "family": "tool_abuse",
-   "weight": 20,
+   "weight": 12,
    "title": "Asks for a high-impact action",
    "explain": "Requests to delete, transfer, buy, or grant access.",
    "pattern": "\\b(delete|wipe|erase|transfer|wire|purchase|approve|grant|disable|merge|deploy)\\b.{0,30}\\b(all (files|emails|data|records)|account|funds|money|access|permissions?|repository|the database|mfa|2fa)\\b"
@@ -172,7 +201,7 @@ self.IG_RULES = {
    "weight": 35,
    "title": "Tells the AI to hide things from the user",
    "explain": "Asks the AI to keep the user in the dark about what it is doing.",
-   "pattern": "\\b(do not|don't|dont|never|must not)\\b.{0,25}\\b(tell|inform|mention|reveal|show|disclose|alert|notify|warn)\\b.{0,25}\\b(the )?(user|human|reader|anyone|operator|recipient)\\b"
+   "pattern": "\\b(do not|don't|dont|never|must not)\\b.{0,25}\\b(tell|inform|mention|reveal|disclose|alert|notify|warn)\\b.{0,25}\\b(the )?(user|human|operator)s?\\b"
   },
   {
    "id": "CON-002",
@@ -196,7 +225,7 @@ self.IG_RULES = {
    "weight": 25,
    "title": "Mentions hidden or secret instructions",
    "explain": "Text that calls itself a hidden instruction is almost never legitimate.",
-   "pattern": "\\b(hidden|secret|invisible|confidential) (instruction|prompt|message|directive|command)s?\\b"
+   "pattern": "\\b(hidden|secret|invisible) (instruction|prompt|directive|command)s?\\b|\\bconfidential (instruction|prompt|directive)s?\\b"
   }
  ]
 };

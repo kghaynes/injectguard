@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "injectguard"
-version = "0.0.2"
+version = "0.0.3"
 description = "Finds hidden prompt injections in web pages and documents (PDF, Office, HTML, Markdown, email)."
 readme = "README.md"
 requires-python = ">=3.10"

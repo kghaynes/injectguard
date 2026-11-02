@@ -21,6 +21,18 @@ RULESET = json.loads(RULES_PATH.read_text(encoding="utf-8"))
 MULT = RULESET["visibility_multiplier"]
 TH_SUSPICIOUS = RULESET["thresholds"]["suspicious"]
 TH_MALICIOUS = RULESET["thresholds"]["malicious"]
+REASON_TIERS = RULESET.get("hidden_reason_multiplier", [])
+DUP_MIN = RULESET.get("duplicate_min_chars", 20)
+
+
+def multiplier(visibility: str, reason) -> float:
+    """Hidden text scores x2, except hiding that normal web pages use all the time."""
+    if visibility == "hidden" and reason:
+        r = reason.lower()
+        for tier in REASON_TIERS:
+            if any(r.startswith(p) for p in tier["prefixes"]):
+                return tier["mult"]
+    return MULT.get(visibility, 1.0)
 
 
 def _compile(rule):
@@ -97,20 +109,21 @@ def _excerpt(raw: str, start: int, end: int, ctx: int = 60) -> str:
 QUOTES = "\"'“”‘’«»`"
 
 
-def _is_quoted(raw: str, start: int, end: int) -> bool:
-    before = raw[max(0, start - 30):start]
-    after = raw[end:end + 40]
-    qb = max((before.rfind(q) for q in QUOTES), default=-1)
-    if qb == -1:
-        return False
-    # the opening quote must not be closed before the match starts
-    if any(q in before[qb + 1:] for q in QUOTES):
-        return False
-    return any(q in after for q in QUOTES)
+def _is_quoted(raw: str, start: int, end: int, span: int = 300) -> bool:
+    """True when the match sits inside an open quotation (someone quoting the attack, not making it)."""
+    before = raw[max(0, start - span):start]
+    after = raw[end:end + span]
+    if before.count('"') % 2 == 1 and '"' in after:
+        return True
+    for o, c in (("“", "”"), ("‘", "’"), ("«", "»")):
+        if before.rfind(o) > before.rfind(c) and c in after:
+            return True
+    qb = before.rfind("'")   # single straight quote: only right next to the phrase (apostrophes are common)
+    return qb >= len(before) - 3 and "'" in after[:120]
 
 
-def _score(weight: int, visibility: str) -> int:
-    return int(min(100, math.floor(weight * MULT.get(visibility, 1.0) + 0.5)))  # same rounding as JS Math.round
+def _score(weight: int, visibility: str, reason=None) -> int:
+    return int(min(100, math.floor(weight * multiplier(visibility, reason) + 0.5)))  # same rounding as JS Math.round
 
 
 def run_phrase_rules(raw: str, seg: Segment, *, extra_weight: int = 0, rule_prefix: str = "",
@@ -144,7 +157,7 @@ def run_phrase_rules(raw: str, seg: Segment, *, extra_weight: int = 0, rule_pref
             family=family_override or rule["family"],
             title=title,
             explain=explain,
-            score=_score(weight, seg.visibility),
+            score=_score(weight, seg.visibility, seg.hidden_reason),
             excerpt=_excerpt(raw, rs, re_),
             location=seg.location,
             visibility=seg.visibility,
@@ -244,10 +257,26 @@ def check_homoglyphs(raw: str, seg: Segment) -> List[Finding]:
     return []
 
 
+def _demote_duplicates(segments: List[Segment]) -> List[Segment]:
+    """Hidden text that also appears on screen is a layout copy (mobile menu, responsive duplicate), not camouflage.
+    Treat it as visible."""
+    visible = " ".join(normalize(s.text or "")[0] for s in segments if s.visibility == VISIBLE)
+    if not visible:
+        return segments
+    out = []
+    for s in segments:
+        if s.visibility == HIDDEN:
+            n = normalize(s.text or "")[0].strip()
+            if len(n) >= DUP_MIN and n in visible:
+                s = Segment(s.text, s.location, VISIBLE, None)
+        out.append(s)
+    return out
+
+
 def scan_segments(segments: Iterable[Segment]) -> Tuple[List[Finding], int]:
     """Run every check on every segment. Returns findings and number of segments scanned."""
     findings: List[Finding] = []
-    queue = list(segments)
+    queue = _demote_duplicates(list(segments))
     n = 0
     while queue:
         seg = queue.pop(0)

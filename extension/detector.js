@@ -4,6 +4,15 @@
   const R = root.IG_RULES;
   const MULT = R.visibility_multiplier;
   const TH = R.thresholds;
+  const TIERS = R.hidden_reason_multiplier || [];
+  const DUP_MIN = R.duplicate_min_chars || 20;
+  function multiplier(vis, reason) {
+    if (vis === 'hidden' && reason) {
+      const r = String(reason).toLowerCase();
+      for (const t of TIERS) if (t.prefixes.some(p => r.startsWith(p))) return t.mult;
+    }
+    return MULT[vis] || 1;
+  }
   const PHRASE = R.phrase_rules.map(r => ({ ...r, rx: new RegExp(r.pattern, 'is' + (r.flags || '').replace(/[^m]/g, '')) }));
 
   const ZW = new Set([0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF, 0x180E, 0x00AD, 0x034F, 0x2061, 0x2062, 0x2063, 0x2064]);
@@ -56,19 +65,17 @@
     return s.slice(0, 300);
   }
 
-  const QUOTES = `"'“”‘’«»\``;
-  function isQuoted(raw, s, e) {
-    const before = raw.slice(Math.max(0, s - 30), s), after = raw.slice(e, e + 40);
-    let qb = -1;
-    for (const q of QUOTES) qb = Math.max(qb, before.lastIndexOf(q));
-    if (qb === -1) return false;
-    const tail = before.slice(qb + 1);
-    for (const q of QUOTES) if (tail.includes(q)) return false;
-    for (const q of QUOTES) if (after.includes(q)) return true;
-    return false;
+  // True when the match sits inside an open quotation (someone quoting the attack, not making it).
+  function isQuoted(raw, s, e, span = 300) {
+    const before = raw.slice(Math.max(0, s - span), s), after = raw.slice(e, e + span);
+    if ((before.split('"').length - 1) % 2 === 1 && after.includes('"')) return true;
+    for (const [o, c] of [['“', '”'], ['‘', '’'], ['«', '»']])
+      if (before.lastIndexOf(o) > before.lastIndexOf(c) && after.includes(c)) return true;
+    const qb = before.lastIndexOf("'");
+    return qb >= before.length - 3 && after.slice(0, 120).includes("'");
   }
 
-  const score = (w, vis) => Math.min(100, Math.round(w * (MULT[vis] || 1)));
+  const score = (w, vis, reason) => Math.min(100, Math.round(w * multiplier(vis, reason)));
 
   function phrase(raw, seg, extra = 0, prefix = '', famOverride = null, titlePrefix = '') {
     const [norm, idx] = normalize(raw);
@@ -94,7 +101,7 @@
         w = Math.floor(w * 0.4); title += ' (quoted - likely a discussion)';
       }
       found.push({
-        rule_id: prefix + r.id, family: famOverride || r.family, title, explain, score: score(w, seg.visibility),
+        rule_id: prefix + r.id, family: famOverride || r.family, title, explain, score: score(w, seg.visibility, seg.hidden_reason),
         excerpt: excerpt(raw, rs, re), location: seg.location, visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
       });
     }
@@ -169,9 +176,20 @@
     }];
   }
 
+  // Hidden text that also appears on screen is a layout copy, not camouflage: treat it as visible.
+  function demoteDuplicates(segments) {
+    const visible = segments.filter(s => s.visibility === 'visible').map(s => normalize(s.text || '')[0]).join(' ');
+    if (!visible) return segments.slice();
+    return segments.map(s => {
+      if (s.visibility !== 'hidden') return s;
+      const n = normalize(s.text || '')[0].trim();
+      return n.length >= DUP_MIN && visible.includes(n) ? { ...s, visibility: 'visible', hidden_reason: null } : s;
+    });
+  }
+
   function scanSegments(segments) {
     const findings = [];
-    const queue = segments.slice();
+    const queue = demoteDuplicates(segments);
     let n = 0;
     while (queue.length) {
       const seg = queue.shift();
