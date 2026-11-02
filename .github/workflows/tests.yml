@@ -1,0 +1,47 @@
+name: tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - run: pip install -e ".[dev]"
+      - run: python -m pytest -q
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Extension rules match the engine's rules
+        run: python tools/sync_rules.py && git diff --exit-code extension/rules.js
+      - name: Extension scripts parse
+        run: for f in extension/*.js; do node --check "$f"; done
+      - name: Manifest is valid JSON with matching version
+        run: |
+          python - <<'PY'
+          import json, re
+          m = json.load(open("extension/manifest.json"))
+          v = re.search(r'__version__ = "(.+)"', open("injectguard/__init__.py").read()).group(1)
+          assert m["version"] == v, (m["version"], v)
+          print("manifest", m["version"], "ok")
+          PY

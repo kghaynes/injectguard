@@ -1,4 +1,13 @@
 # InjectGuard
+[![tests](https://github.com/kghaynes/injectguard/actions/workflows/tests.yml/badge.svg)](https://github.com/kghaynes/injectguard/actions/workflows/tests.yml)
+[![release](https://img.shields.io/github/v/release/kghaynes/injectguard)](https://github.com/kghaynes/injectguard/releases)
+[![last commit](https://img.shields.io/github/last-commit/kghaynes/injectguard)](https://github.com/kghaynes/injectguard/commits/main)
+[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](pyproject.toml)
+[![platforms](https://img.shields.io/badge/runs%20on-macOS%20%7C%20Windows%20%7C%20Linux-555)](#install-on-macos)
+[![chrome extension](https://img.shields.io/badge/Chrome-extension-4285F4?logo=googlechrome&logoColor=white)](#6-add-the-chrome-extension)
+[![runs locally](https://img.shields.io/badge/data-stays%20on%20your%20computer-2E7D32)](#security-of-the-tool-itself)
+[![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![support on Ko-fi](https://img.shields.io/badge/support-Ko--fi-FF5E5B?logo=kofi&logoColor=white)](#supporting-injectguard)
 
 InjectGuard finds **hidden prompt injections** in web pages and documents and warns you before an AI tool reads them.
 A prompt injection is text written to hijack an AI tool: white-on-white text, zero-size fonts, HTML comments, hidden
@@ -13,6 +22,19 @@ blocks your work. Everything runs on your computer.
 | **Background service** | Real-time watch of chosen folders, a daily scheduled scan, and the local link for the Chrome extension. Starts at login. |
 | **Chrome extension** | Scans each page as it loads and when it changes. Toolbar badge, on-page warning banner, **Reveal hidden text**, right-click menus, alert history. Works alone; pairs with the desktop engine for the full checks. |
 | **Command line** | `injectguard scan …` for files, folders and URLs. Exit codes for scripts. |
+
+## Contents
+
+- [Screenshots](#screenshots)
+- [Install on macOS](#install-on-macos)
+- [Install on Windows or Linux](#install-on-windows-or-linux)
+- [Command line](#command-line)
+- [What it detects](#what-it-detects)
+- [Security of the tool itself](#security-of-the-tool-itself)
+- [Contributing and reporting](#contributing-and-reporting)
+- [Supporting InjectGuard](#supporting-injectguard)
+- [Changelog](#changelog)
+- [License](#license)
 
 ## Screenshots
 
@@ -316,6 +338,28 @@ pytest -q                                  # 152 tests: all formats, false-posit
 python tests/browser_e2e.py /tmp/shots     # real Chromium with the extension loaded and paired (needs: playwright install chromium)
 python tests/make_samples.py /tmp/igtest   # build the malicious + clean sample files
 ```
+
+## Contributing and reporting
+
+- **False alarm?** Open a [Flagged a normal page or file](https://github.com/kghaynes/injectguard/issues/new?template=false_positive.yml) issue. These are the most useful reports.
+- **Missed something?** Open a [Missed hidden text](https://github.com/kghaynes/injectguard/issues/new?template=missed_detection.yml) issue with a public example.
+- **Security problem in InjectGuard itself?** Report it privately; see [SECURITY.md](SECURITY.md).
+- **Want to contribute code?** See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Supporting InjectGuard
+
+InjectGuard is free and open source, and it will stay that way. There are no ads, no paid tier, and nothing you scan leaves your computer.
+
+It is built and maintained by one person on his own time. Tips help pay for the AI usage needed to build and test new detections, and they are a good sign the work is worth continuing.
+
+If InjectGuard helped you, you can say thanks here:
+
+- **[GitHub Sponsors](https://github.com/sponsors/kghaynes)**: one-time or monthly. No fees, so all of it goes to the project.
+- **[Ko-fi](https://ko-fi.com/kenhaynes)**: one-time tip by card or PayPal. No GitHub account needed.
+
+Tips are completely optional and are not tax-deductible. Everything in InjectGuard works the same whether you tip or not.
+
+Not in a position to tip? Starring the repo, reporting false alarms, and telling a colleague about it helps just as much.
 
 ## Changelog
 

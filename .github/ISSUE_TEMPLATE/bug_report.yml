@@ -1,0 +1,33 @@
+name: Bug report
+description: Something isn't working the way the README says it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you clicked or ran, what you expected, and what you saw instead.
+    validations: {required: true}
+  - type: dropdown
+    id: part
+    attributes:
+      label: Which part?
+      options: [Install, Desktop app, Background service, Chrome extension, Command line, Other]
+    validations: {required: true}
+  - type: dropdown
+    id: os
+    attributes:
+      label: Computer
+      options: [Mac, Windows, Linux]
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Run `injectguard --version`.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log (optional)
+      description: "Mac: `tail -50 ~/Library/Logs/injectguard.err.log`. Remove anything personal."
+      render: text

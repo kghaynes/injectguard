@@ -1,0 +1,30 @@
+name: Flagged a normal page or file
+description: InjectGuard warned about a page or file that isn't hiding anything aimed at AI.
+labels: [false-positive]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks. False alarms are the most useful reports. **Remove anything personal from screenshots** (names, email contents, account details)."
+  - type: input
+    id: where
+    attributes:
+      label: Page address or file type
+      description: The URL, or the kind of file (PDF, Word, email...) if it's private.
+    validations: {required: true}
+  - type: input
+    id: verdict
+    attributes:
+      label: Verdict and score
+      placeholder: "Suspicious, 40"
+    validations: {required: true}
+  - type: textarea
+    id: finding
+    attributes:
+      label: Top finding
+      description: The finding title, the hidden/visible tag (with its reason) and the quoted text from the popup or results pane. A screenshot is fine.
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Run `injectguard --version`, or see chrome://extensions.

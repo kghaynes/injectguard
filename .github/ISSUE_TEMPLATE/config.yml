@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/kghaynes/injectguard/security/advisories/new
+    about: Please report security problems in InjectGuard itself privately, not as an issue.

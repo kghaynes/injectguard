@@ -1,0 +1,27 @@
+name: Missed hidden text
+description: A page or file hides text aimed at AI tools and InjectGuard didn't flag it.
+labels: [missed-detection]
+body:
+  - type: markdown
+    attributes:
+      value: "Please share a **public** example (a link or a test file). Don't upload private documents."
+  - type: input
+    id: where
+    attributes:
+      label: Page address or test file
+    validations: {required: true}
+  - type: dropdown
+    id: how
+    attributes:
+      label: How is the text hidden? (best guess)
+      options: [Same colour as the background, Tiny or transparent text, Off-screen or clipped, display:none or aria-hidden, HTML comment, Attribute (alt, title, data-*), Invisible Unicode characters, Inside a PDF or Office file, Not sure]
+    validations: {required: true}
+  - type: input
+    id: verdict
+    attributes:
+      label: What InjectGuard said
+      placeholder: "Clean, 8"
+  - type: input
+    id: version
+    attributes:
+      label: Version
