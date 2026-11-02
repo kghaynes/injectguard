@@ -224,7 +224,56 @@
    "weight": 25,
    "title": "Mentions hidden or secret instructions",
    "explain": "Text that calls itself a hidden instruction is almost never legitimate.",
-   "pattern": "\\b(hidden|secret|invisible) (instruction|prompt|directive|command)s?\\b|\\bconfidential (instruction|prompt|directive)s?\\b"
+   "pattern": "\\b(hidden|secret|invisible) (instruction|prompt|directive|command)s?\\b(?! injection)|\\bconfidential (instruction|prompt|directive)s?\\b(?! injection)"
+  },
+  {
+   "id": "OUT-001",
+   "family": "output_manipulation",
+   "weight": 15,
+   "title": "Tells the AI what to put in its answer",
+   "explain": "Asks the AI to slip specific words, codes or links into its summary or reply. Test pages use this to prove an agent obeyed hidden text; attackers use it to plant false claims or links.",
+   "pattern": "\\b(include|insert|add|append|mention|repeat|output|write|say|state|place|embed)\\b.{0,60}\\b(in|into|to|at the (start|end|beginning) of|within)\\s+(your|the|any|every)\\s+(summary|summaries|response|responses|reply|replies|answer|answers|output|report)\\b"
+  },
+  {
+   "id": "OUT-002",
+   "family": "output_manipulation",
+   "weight": 15,
+   "title": "Dictates how the AI's answer must start, end or read",
+   "explain": "Sets required content for the AI's reply, a common way hidden text steers what the user is told.",
+   "pattern": "\\b(your|the|any|every)\\s+(summary|response|reply|answer|output)\\s+(must|should|shall|needs to|has to|is required to)\\s+(include|contain|begin|start|end|mention|state|say|read|open|close)\\b"
+  },
+  {
+   "id": "AUT-001",
+   "family": "role_spoof",
+   "weight": 30,
+   "title": "Claims authority over AI readers",
+   "explain": "Presents a fake rule, protocol or policy that AI tools supposedly must follow. Real content doesn't tell AI tools what they are required to do.",
+   "pattern": "\\b(ai\\b[\\w\\s,&-]{0,40}|llms?|large language models?|language models?|chatbots?)\\b.{0,40}\\b(are|is)\\s+(required|instructed|mandated|obligated|expected|directed|authori[sz]ed)\\s+to\\b"
+  },
+  {
+   "id": "OUT-003",
+   "family": "output_manipulation",
+   "weight": 30,
+   "title": "Gives instructions for when the page is summarized",
+   "explain": "Text that says what to do 'when summarizing this page' is written for an AI tool, not a human reader.",
+   "pattern": "\\b(when|while|if|before|after)\\s+(you\\s+(are\\s+)?)?(summari[sz]ing|summari[sz]e|condensing|paraphrasing)\\s+(this|the)\\s+(page|document|article|content|site|text|email|file)\\b"
   }
- ]
+ ],
+ "combo": {
+  "addressing": [
+   "ROL-005",
+   "AUT-001",
+   "ROL-001",
+   "ROL-003"
+  ],
+  "action_families": [
+   "override",
+   "output_manipulation",
+   "exfiltration",
+   "concealment",
+   "tool_abuse"
+  ],
+  "bonus_hidden": 20,
+  "bonus_visible": 10
+ }
 }

@@ -67,15 +67,21 @@ def _style_hidden(st: dict) -> Optional[str]:
         return "display:none"
     if st.get("visibility") in ("hidden", "collapse"):
         return "visibility:hidden"
+    op = 1.0
     if "opacity" in st:
         try:
-            if float(st["opacity"]) <= 0.05:
-                return "opacity:0"
+            op = float(st["opacity"])
         except ValueError:
             pass
+    if op <= 0.05:
+        return "opacity:0"
+    if op <= 0.15:
+        return f"nearly transparent (opacity {op})"
     fs = _px(st.get("font-size", ""))
-    if fs is not None and fs < 2:
+    if fs is not None and fs < 4:
         return "font-size near 0"
+    if fs is not None and fs < 7 and op < 0.5:
+        return f"micro text ({fs:g}px, opacity {op})"
     for side in ("left", "top", "text-indent", "margin-left", "right"):
         v = _px(st.get(side, ""))
         if v is not None and v <= -999:
@@ -140,7 +146,7 @@ def extract_html(html: str, location: str = "HTML", base_bg=(255, 255, 255)) -> 
             if isinstance(v, str) and len(v) > 25:
                 segs.append(Segment(v, f"{location}: {a} attribute on <{el.name}>", METADATA, f"{a} attribute"))
         for a, v in list(el.attrs.items()):
-            if a.startswith("data-") and a not in TEXT_ATTRS and isinstance(v, str) and len(v) > 60 and " " in v:
+            if a.startswith("data-") and a not in TEXT_ATTRS and isinstance(v, str) and len(v) > 40 and " " in v:
                 segs.append(Segment(v, f"{location}: {a} attribute on <{el.name}>", METADATA, f"{a} attribute"))
 
     for s in soup.find_all(list(SKIP_TAGS)):

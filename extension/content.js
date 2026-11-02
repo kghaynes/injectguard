@@ -57,11 +57,13 @@
     if (cs.display === 'none') return el.tagName === 'NOSCRIPT' ? 'inside <noscript>' : 'display:none';
     if (cs.visibility === 'hidden' || cs.visibility === 'collapse') return 'visibility:hidden';
     if (cs.contentVisibility === 'hidden') return 'content-visibility:hidden';
-    if (parseFloat(cs.opacity) <= 0.05) return 'opacity:0';
+    const op = parseFloat(cs.opacity);
+    if (op <= 0.15) return op <= 0.05 ? 'opacity:0' : `nearly transparent (opacity ${op})`;
     if (el.hidden) return 'hidden attribute';
     if (el.getAttribute('aria-hidden') === 'true' && (el.textContent || '').trim().length > 30) return 'aria-hidden';
     const fs = parseFloat(cs.fontSize);
-    if (fs < 2) return `font-size ${fs}px`;
+    if (fs < 4) return `font-size ${fs}px`;
+    if (fs < 7 && op < 0.5) return `micro text (${fs}px, opacity ${op})`;
     const tf = cs.transform;
     if (tf && tf.startsWith('matrix(')) {
       const v = tf.slice(7, -1).split(',').map(Number);
@@ -70,10 +72,10 @@
     if ((cs.clip && /rect\(\s*0(px)?,?\s+0(px)?/.test(cs.clip)) || /inset\(\s*(50|100)%/.test(cs.clipPath || '')) return 'clipped to nothing';
     if (el.tagName === 'DETAILS' && !el.open) return null;  // collapsed <details>: content handled by display rules
     const r = el.getBoundingClientRect();
-    const docW = Math.max(document.documentElement.scrollWidth, innerWidth);
+    const viewW = Math.max(document.documentElement.clientWidth, innerWidth);
     const absL = r.left + scrollX, absT = r.top + scrollY;
     if (r.width > 0 || r.height > 0) {
-      if (absL + r.width <= 0 || absT + r.height <= 0 || absL >= docW + 50) return 'moved off-screen';
+      if (absL + r.width <= 0 || absT + r.height <= 0 || absL >= viewW + 500) return 'moved off-screen';
     }
     if ((r.width < 2 || r.height < 2) && (cs.overflow === 'hidden' || cs.overflowX === 'hidden') && (el.textContent || '').trim())
       return 'zero-size box';
@@ -153,6 +155,15 @@
       for (const a of ['alt', 'title', 'aria-label', 'aria-description', 'placeholder', 'data-prompt', 'data-instructions']) {
         const v = e.getAttribute(a);
         if (v && v.length > 25) add(v, `${a} on ${describe(e)}`, 'metadata', `${a} attribute`, e);
+      }
+    });
+    // every data-* attribute holding sentence-like text
+    document.querySelectorAll('*').forEach(e => {
+      for (const at of e.attributes) {
+        if (!at.name.startsWith('data-') || at.name === 'data-prompt' || at.name === 'data-instructions') continue;
+        const v = at.value;
+        if (v && v.length > 40 && /[A-Za-z]{3,} [A-Za-z]{3,}/.test(v))
+          add(v, `${at.name} on ${describe(e)}`, 'metadata', `${at.name} attribute`, e);
       }
     });
     document.querySelectorAll('input[type=hidden][value]').forEach(e => {

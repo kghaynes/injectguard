@@ -68,7 +68,7 @@ cd injectguard
 source .venv/bin/activate
 pip install -U pip
 pip install -e ".[all,dev]"
-injectguard --version          # prints 0.0.4
+injectguard --version          # prints 0.0.6
 ```
 
 `.[all,dev]` installs the desktop app, Outlook `.msg` support, and the test tools. For a smaller install without
@@ -147,12 +147,19 @@ injectguard scan /tmp/igtest/malicious -q    # 16 files: 15 MALICIOUS, 1 SUSPICI
 injectguard scan /tmp/igtest/clean -q        # summary only: 9 clean; exit code 0
 cp /tmp/igtest/malicious/white_text.pdf ~/Downloads/   # notification within ~2 seconds
 injectguard history --limit 3                # newest row shows source "realtime"
-pytest -q                                    # 121 passed
+pytest -q                                    # 152 passed
 ```
 
 Then open `tests/web/malicious.html` in Chrome: the toolbar icon shows a red **!**, a warning banner appears, and
 **Reveal hidden text** outlines the hidden passages in red. `tests/web/spa.html` (built like a social-media feed, full
 of hidden layout copies) should stay clean.
+
+**Public test page:** [Agent Arena](https://feedbagel.com/post/agent-arena-testing-ai-agents-against-prompt-injection-attacks)
+has a page with 10 hidden prompt-injection attacks. From the article, open Agent Arena, then click **Open Test Page**
+(it goes to `ref.jock.pl/modern-web`). InjectGuard should flag that page, and **Reveal hidden text** should outline
+the hidden attacks. The Agent Arena landing page itself only *describes* the attacks and should stay clean or low.
+Turn off any AI browser assistant (Gemini, Claude in Chrome, Copilot) before opening the test page; it is built to
+hijack them.
 
 Delete the test file from Downloads afterwards (or restore it from **View → Quarantine** if auto-quarantine is on).
 
@@ -234,7 +241,7 @@ Exit codes: **0** clean · **1** suspicious · **2** malicious · **3** error.
 
 | Format | Checked |
 |---|---|
-| Web pages / HTML | `display:none`, `visibility:hidden`, opacity 0, font-size 0, text colour matching the background, off-screen, clipped, zero-size boxes, `aria-hidden`, comments, `<noscript>`, `<template>`, meta tags, alt/title attributes, hidden inputs, open shadow DOM, iframes |
+| Web pages / HTML | `display:none`, `visibility:hidden`, opacity under 0.15, fonts under 4 px, small faint "micro text", text colour matching the background, off-screen, clipped, zero-size boxes, `aria-hidden`, comments, `<noscript>`, `<template>`, meta tags, alt/title/aria-label and all `data-*` attributes, hidden inputs, open shadow DOM, iframes |
 | PDF | White text (not on a dark box), text off the page, fonts under 2 pt, invisible render mode, transparency, annotations, form fields, metadata/XMP, JavaScript, embedded files |
 | Word (DOCX) | "Hidden" font setting, white text, tiny fonts, hidden styles, comments, headers/footers, properties, custom XML |
 | Excel (XLSX) | Hidden sheets/rows/columns, white text, the `;;;` number format, comments, defined names |
@@ -245,10 +252,12 @@ Exit codes: **0** clean · **1** suspicious · **2** malicious · **3** error.
 
 **What it looks for**
 
-- 23 phrase rules in five groups: instruction override, fake system/role messages, data theft, tool abuse,
-  concealment.
-- Invisible Unicode: tag characters ("ASCII smuggling") are decoded and re-scanned; zero-width and text-direction
-  characters are counted.
+- 27 phrase rules in six groups: instruction override, fake system/role messages and fake authority, data theft,
+  tool abuse, concealment, and output manipulation ("include X in your summary", "when summarizing this page").
+- A combination rule: text that both addresses an AI and tells it to act gets an extra +20 when hidden (+10 when
+  visible).
+- Invisible Unicode: tag characters ("ASCII smuggling") and messages encoded in zero-width characters are decoded
+  and re-scanned; other zero-width and text-direction characters are counted.
 - Base64 blobs are decoded and re-scanned.
 - Words that mix English letters with Cyrillic or Greek look-alikes.
 
@@ -303,13 +312,19 @@ python tools/sync_rules.py && pytest -q
 ## Tests
 
 ```bash
-pytest -q                                  # 121 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
+pytest -q                                  # 152 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
 python tests/browser_e2e.py /tmp/shots     # real Chromium with the extension loaded and paired (needs: playwright install chromium)
 python tests/make_samples.py /tmp/igtest   # build the malicious + clean sample files
 ```
 
 ## Changelog
 
+- **0.0.6** — Covers all 10 Agent Arena vector types: new output-manipulation and fake-authority rules, a
+  combination rule (addresses an AI + gives an instruction), zero-width message decoding, micro text (small and
+  faint), every `data-*` attribute in the extension, and far-right off-screen text. 24 new tests.
+- **0.0.5** — Fewer false positives on pages *about* prompt injection: "hidden prompt injection" no longer counts as
+  a hidden instruction, and the same text repeated in several places (meta description, og:description,
+  twitter:description) counts once. Added the Agent Arena public test page to the README.
 - **0.0.4** — Fixes pip install (packaging metadata error introduced in 0.0.2).
 - **0.0.3** — Fewer false positives on real sites (found on LinkedIn): hidden copies of visible text count as
   visible; layout-style hiding scores lower than camouflage; tighter rules for "you are now…", "never show… anyone",

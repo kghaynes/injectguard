@@ -6,6 +6,22 @@
   const TH = R.thresholds;
   const TIERS = R.hidden_reason_multiplier || [];
   const DUP_MIN = R.duplicate_min_chars || 20;
+  const COMBO = R.combo;
+  // Text that addresses an AI *and* tells it to do something is an injection however it is worded.
+  function comboFinding(hits, seg) {
+    if (!COMBO || !hits.length) return null;
+    const addr = hits.filter(h => COMBO.addressing.includes(h.rule_id.split(':').pop()));
+    const acts = hits.filter(h => COMBO.action_families.includes(h.family));
+    if (!addr.length || !acts.length) return null;
+    const top = hits.reduce((a, h) => h.score > a.score ? h : a);
+    const bonus = seg.visibility === 'visible' ? COMBO.bonus_visible : COMBO.bonus_hidden;
+    return {
+      rule_id: 'CMB-001', family: 'combination', title: 'Addresses an AI and tells it to act',
+      explain: `This text speaks to AI tools (${addr[0].title.toLowerCase()}) and gives them an instruction (${acts[0].title.toLowerCase()}). That pairing is what makes text a prompt injection.`,
+      score: Math.min(100, top.score + bonus), excerpt: top.excerpt, location: seg.location,
+      visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
+    };
+  }
   function multiplier(vis, reason) {
     if (vis === 'hidden' && reason) {
       const r = String(reason).toLowerCase();
@@ -108,6 +124,38 @@
     return found;
   }
 
+  const ZW_CODE = new Set([0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF]);
+  const plausible = t => t.length >= 4 && [...t].filter(c => c.charCodeAt(0) >= 32 && c.charCodeAt(0) < 127).length / t.length >= 0.9
+    && t.includes(' ') && /[A-Za-z]{3,}/.test(t);
+  // Decode text hidden as binary in zero-width characters (two symbols = 0/1, optional third = separator).
+  function decodeZeroWidth(raw) {
+    let zw = [...raw].filter(c => ZW_CODE.has(c.codePointAt(0)));
+    if (raw.startsWith('\uFEFF')) zw = zw.slice(1);
+    if (zw.length < 16) return '';
+    const count = c => zw.filter(x => x === c).length;
+    const syms = [...new Set(zw)].sort((a, b) => count(b) - count(a));
+    let best = '';
+    const take = t => { if (plausible(t) && t.length > best.length) best = t; };
+    if (syms.length >= 3) {
+      for (const sep of syms) {
+        const bits = syms.filter(c => c !== sep).slice(0, 2);
+        for (const [zero, one] of [bits, [bits[1], bits[0]]]) {
+          const groups = zw.join('').split(sep).filter(g => g && [...g].every(c => c === zero || c === one));
+          take(groups.map(g => String.fromCharCode(parseInt([...g].map(c => c === zero ? '0' : '1').join(''), 2))).join(''));
+        }
+      }
+    }
+    for (const [zero, one] of [[syms[0], syms[1]], [syms[1], syms[0]]]) {
+      const stream = zw.filter(c => c === zero || c === one).map(c => c === zero ? '0' : '1').join('');
+      for (const w of [8, 7]) {
+        let t = '';
+        for (let i = 0; i + w <= stream.length; i += w) t += String.fromCharCode(parseInt(stream.slice(i, i + w), 2));
+        take(t);
+      }
+    }
+    return best;
+  }
+
   function checkUnicode(raw, seg) {
     const f = [], extra = [];
     let zw = 0, bidi = 0, tags = [], first = { zw: -1, bidi: -1, tag: -1 }, i = 0;
@@ -129,7 +177,16 @@
       });
       if (dec.trim()) extra.push({ text: dec, location: seg.location + ' (decoded tag characters)', visibility: 'hidden', hidden_reason: 'invisible Unicode tags' });
     }
-    if (zw >= 3) f.push({
+    const zdec = zw >= 16 ? decodeZeroWidth(raw) : '';
+    if (zdec) {
+      f.push({
+        rule_id: 'UNI-ZWD', family: 'invisible_unicode', title: 'Hidden message encoded in zero-width characters',
+        explain: 'A run of invisible zero-width characters spells out text in binary. People see nothing; tools that decode it, including some AI pipelines, read a message.',
+        score: Math.min(100, 50 + (zdec.length > 10 ? 20 : 0)), excerpt: 'Decoded: ' + zdec.slice(0, 250),
+        location: seg.location, visibility: seg.visibility, hidden_reason: 'zero-width encoding'
+      });
+      extra.push({ text: zdec, location: seg.location + ' (decoded zero-width characters)', visibility: 'hidden', hidden_reason: 'zero-width encoding' });
+    } else if (zw >= 3) f.push({
       rule_id: 'UNI-ZW', family: 'invisible_unicode', title: `${zw} zero-width characters`,
       explain: 'Zero-width characters are invisible. They are used to split banned words so filters miss them, or to watermark text.',
       score: zw < 20 ? 20 : 30, excerpt: excerpt(raw, first.zw, first.zw + 1), location: seg.location, visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
@@ -201,6 +258,8 @@
       queue.push(...extra);
       const hits = [...phrase(raw, seg), ...checkBase64(raw, seg), ...checkHomoglyphs(raw, seg)];
       findings.push(...hits);
+      const combo = comboFinding(hits, seg);
+      if (combo) findings.push(combo);
       if (seg.visibility === 'hidden' && !hits.length && !uni.length && normalize(raw)[0].length >= 40) {
         findings.push({
           rule_id: 'HID-INFO', family: 'hidden_text', title: 'Hidden text (no instructions found)',
@@ -213,13 +272,26 @@
     return [dedupe(findings), n];
   }
 
+  // One finding per rule per piece of text: the same sentence in several places counts once.
   function dedupe(fs) {
-    const best = new Map();
+    const best = new Map(), places = new Map();
     for (const f of fs) {
-      const k = f.rule_id + '|' + f.location + '|' + f.excerpt.slice(0, 80);
+      const k = f.rule_id + '|' + normalize(f.excerpt)[0].slice(0, 80);
+      if (!places.has(k)) places.set(k, new Set());
+      places.get(k).add(f.location);
       if (!best.has(k) || best.get(k).score < f.score) best.set(k, f);
     }
-    return [...best.values()].sort((a, b) => b.score - a.score);
+    const out = [];
+    for (const [k, f0] of best) {
+      const f = { ...f0 }, n = places.get(k).size - 1;
+      if (n > 0) {
+        const m = /\s*(\[\d+\])$/.exec(f.location);
+        const loc = m ? f.location.slice(0, m.index) : f.location;
+        f.location = `${loc} (+${n} more place${n > 1 ? 's' : ''})${m ? ' ' + m[1] : ''}`;
+      }
+      out.push(f);
+    }
+    return out.sort((a, b) => b.score - a.score);
   }
 
   function overall(fs) {

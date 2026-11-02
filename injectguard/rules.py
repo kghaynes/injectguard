@@ -23,6 +23,7 @@ TH_SUSPICIOUS = RULESET["thresholds"]["suspicious"]
 TH_MALICIOUS = RULESET["thresholds"]["malicious"]
 REASON_TIERS = RULESET.get("hidden_reason_multiplier", [])
 DUP_MIN = RULESET.get("duplicate_min_chars", 20)
+COMBO = RULESET.get("combo")
 
 
 def multiplier(visibility: str, reason) -> float:
@@ -174,6 +175,44 @@ LATIN = re.compile(r"[A-Za-z]")
 WORD_RX = re.compile(r"[^\W\d_]{3,}", re.U)
 
 
+ZW_CODE = (0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF)
+
+
+def _plausible(t: str) -> bool:
+    return (len(t) >= 4 and sum(32 <= ord(c) < 127 for c in t) / len(t) >= 0.9
+            and " " in t and re.search(r"[A-Za-z]{3,}", t) is not None)
+
+
+def decode_zero_width(raw: str) -> str:
+    """Decode text hidden as binary in zero-width characters (two symbols = 0/1, optional third = separator)."""
+    zw = [c for c in raw if ord(c) in ZW_CODE]
+    if raw[:1] == "\ufeff":
+        zw = zw[1:]
+    if len(zw) < 16:
+        return ""
+    syms = sorted(set(zw), key=lambda c: -zw.count(c))
+    best = ""
+    if len(syms) >= 3:
+        for sep in syms:
+            bits = [c for c in syms if c != sep][:2]
+            for zero, one in (bits, bits[::-1]):
+                groups = "".join(zw).split(sep)
+                try:
+                    t = "".join(chr(int("".join("0" if c == zero else "1" for c in g), 2))
+                                for g in groups if g and set(g) <= {zero, one})
+                except ValueError:
+                    continue
+                if _plausible(t) and len(t) > len(best):
+                    best = t
+    for zero, one in (syms[:2], syms[:2][::-1]):
+        stream = "".join("0" if c == zero else "1" for c in zw if c in (zero, one))
+        for width in (8, 7):
+            t = "".join(chr(int(stream[i:i + width], 2)) for i in range(0, len(stream) - width + 1, width))
+            if _plausible(t) and len(t) > len(best):
+                best = t
+    return best
+
+
 def check_unicode(raw: str, seg: Segment) -> Tuple[List[Finding], List[Segment]]:
     """Find invisible characters. Unicode tag characters are decoded and returned as a new hidden segment."""
     findings: List[Finding] = []
@@ -196,7 +235,18 @@ def check_unicode(raw: str, seg: Segment) -> Tuple[List[Finding], List[Segment]]
             location=seg.location, visibility=seg.visibility, hidden_reason="invisible Unicode tags"))
         if decoded.strip():
             extra.append(Segment(decoded, seg.location + " (decoded tag characters)", HIDDEN, "invisible Unicode tags"))
-    if zw >= 3:
+    zdec = decode_zero_width(raw) if zw >= 16 else ""
+    if zdec:
+        pos = next(i for i, ch in enumerate(raw) if ord(ch) in ZERO_WIDTH)
+        findings.append(Finding(
+            rule_id="UNI-ZWD", family="invisible_unicode",
+            title="Hidden message encoded in zero-width characters",
+            explain="A run of invisible zero-width characters spells out text in binary. People see nothing; "
+                    "tools that decode it, including some AI pipelines, read a message.",
+            score=min(100, 50 + (20 if len(zdec) > 10 else 0)), excerpt="Decoded: " + zdec[:250],
+            location=seg.location, visibility=seg.visibility, hidden_reason="zero-width encoding"))
+        extra.append(Segment(zdec, seg.location + " (decoded zero-width characters)", HIDDEN, "zero-width encoding"))
+    elif zw >= 3:
         pos = next(i for i, ch in enumerate(raw) if ord(ch) in ZERO_WIDTH)
         findings.append(Finding(
             rule_id="UNI-ZW", family="invisible_unicode",
@@ -257,6 +307,24 @@ def check_homoglyphs(raw: str, seg: Segment) -> List[Finding]:
     return []
 
 
+def combo_finding(hits: List[Finding], seg: Segment):
+    """Text that addresses an AI *and* tells it to do something is an injection however it is worded."""
+    if not COMBO or not hits:
+        return None
+    addr = [h for h in hits if h.rule_id.split(":")[-1] in COMBO["addressing"]]
+    acts = [h for h in hits if h.family in COMBO["action_families"]]
+    if not addr or not acts:
+        return None
+    top = max(hits, key=lambda h: h.score)
+    bonus = COMBO["bonus_visible"] if seg.visibility == VISIBLE else COMBO["bonus_hidden"]
+    return Finding(
+        rule_id="CMB-001", family="combination", title="Addresses an AI and tells it to act",
+        explain=f"This text speaks to AI tools ({addr[0].title.lower()}) and gives them an instruction "
+                f"({acts[0].title.lower()}). That pairing is what makes text a prompt injection.",
+        score=min(100, top.score + bonus), excerpt=top.excerpt, location=seg.location,
+        visibility=seg.visibility, hidden_reason=seg.hidden_reason)
+
+
 def _demote_duplicates(segments: List[Segment]) -> List[Segment]:
     """Hidden text that also appears on screen is a layout copy (mobile menu, responsive duplicate), not camouflage.
     Treat it as visible."""
@@ -291,6 +359,9 @@ def scan_segments(segments: Iterable[Segment]) -> Tuple[List[Finding], int]:
         seg_hits += check_base64(raw, seg)
         seg_hits += check_homoglyphs(raw, seg)
         findings.extend(seg_hits)
+        combo = combo_finding(seg_hits, seg)
+        if combo:
+            findings.append(combo)
         # Hidden text with no other hit: list it as info so the user knows it exists.
         if seg.visibility == HIDDEN and not seg_hits and not uni:
             norm, _ = normalize(raw)
@@ -305,12 +376,23 @@ def scan_segments(segments: Iterable[Segment]) -> Tuple[List[Finding], int]:
 
 
 def dedupe(findings: List[Finding]) -> List[Finding]:
-    best = {}
+    """One finding per rule per piece of text. The same sentence repeated in several places (meta description,
+    og:description, twitter:description) counts once; the other places are listed in the location."""
+    best, places = {}, {}
     for f in findings:
-        key = (f.rule_id, f.location, f.excerpt[:80])
+        key = (f.rule_id, normalize(f.excerpt)[0][:80])
+        places.setdefault(key, []).append(f.location)
         if key not in best or f.score > best[key].score:
             best[key] = f
-    return sorted(best.values(), key=lambda f: -f.score)
+    out = []
+    for key, f in best.items():
+        n = len(set(places[key])) - 1
+        if n > 0:
+            loc, idx = re.subn(r"\s*(\[\d+\])$", "", f.location)
+            tail = f.location[len(loc):] if idx else ""
+            f.location = f"{loc} (+{n} more place{'s' if n > 1 else ''}){tail}"
+        out.append(f)
+    return sorted(out, key=lambda f: -f.score)
 
 
 def overall(findings: List[Finding]) -> Tuple[int, str]:
