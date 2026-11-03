@@ -54,7 +54,7 @@ def cmd_scan(a, s):
             results.append(r)
             if not a.no_record:
                 store.record(r, "cli")
-            if not a.json and (not a.quiet or r.verdict not in ("clean", "skipped")):
+            if not a.json and (not a.quiet or r.verdict in ("suspicious", "malicious", "error")):
                 show(r, a.verbose)
             worst = max(worst, EXIT.get(r.verdict, 0))
     if a.json:
@@ -64,9 +64,9 @@ def cmd_scan(a, s):
         Path(a.report).write_text(to_json(results) if a.report.endswith(".json") else to_html(results), encoding="utf-8")
         print(f"Report written to {a.report}", file=sys.stderr)
     if not a.json:
-        n = {k: sum(1 for r in results if r.verdict == k) for k in ("malicious", "suspicious", "clean", "error")}
+        n = {k: sum(1 for r in results if r.verdict == k) for k in ("malicious", "suspicious", "clean", "skipped", "error")}
         print(col("dim", f"\n{len(results)} scanned · {n['malicious']} malicious · {n['suspicious']} suspicious · "
-                         f"{n['clean']} clean · {n['error']} errors"), file=sys.stderr)
+                         f"{n['clean']} clean · {n['skipped']} skipped · {n['error']} errors"), file=sys.stderr)
     return worst
 
 

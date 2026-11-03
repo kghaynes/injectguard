@@ -90,7 +90,7 @@ cd injectguard
 source .venv/bin/activate
 pip install -U pip
 pip install -e ".[all,dev]"
-injectguard --version          # prints 0.0.8
+injectguard --version          # prints 0.0.9
 ```
 
 `.[all,dev]` installs the desktop app, Outlook `.msg` support, and the test tools. For a smaller install without
@@ -169,7 +169,7 @@ injectguard scan /tmp/igtest/malicious -q    # 16 files: 15 MALICIOUS, 1 SUSPICI
 injectguard scan /tmp/igtest/clean -q        # summary only: 9 clean; exit code 0
 cp /tmp/igtest/malicious/white_text.pdf ~/Downloads/   # notification within ~2 seconds
 injectguard history --limit 3                # newest row shows source "realtime"
-pytest -q                                    # 177 passed
+pytest -q                                    # 181 passed
 ```
 
 Then open `tests/web/malicious.html` in Chrome: the toolbar icon shows a red **!**, a warning banner appears, and
@@ -314,6 +314,7 @@ Exit codes: **0** clean · **1** suspicious · **2** malicious · **3** error.
   cloud metadata addresses), and every redirect is checked the same way.
 - Files are only parsed. Macros, scripts and PDF JavaScript never run. XML entity expansion is off.
 - Limits: 50 MB per file (adjustable), 3 levels of nesting, 200 MB uncompressed per archive.
+- iCloud files that aren't downloaded to this Mac are skipped without being read, so a scan never pulls them down.
 - Text sent to the local AI is wrapped as quoted data, and the model is told only to classify it.
 - Quarantine moves files (never deletes) and records the original path. Restore puts them back.
 
@@ -341,7 +342,7 @@ python tools/sync_rules.py && pytest -q
 ## Tests
 
 ```bash
-pytest -q                                  # 177 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
+pytest -q                                  # 181 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
 python tests/browser_e2e.py /tmp/shots     # real Chromium with the extension loaded and paired (needs: playwright install chromium)
 python tests/make_samples.py /tmp/igtest   # build the malicious + clean sample files
 ```
@@ -370,6 +371,9 @@ Not in a position to tip? Starring the repo, reporting false alarms, and telling
 
 ## Changelog
 
+- **0.0.9** — Files InjectGuard can't look inside are reported as **skipped** with a plain reason instead of
+  errors: iCloud placeholders not downloaded to this Mac (skipped without reading, so scans never trigger iCloud
+  downloads), empty files, and password-protected PDFs. `scan -q` lists only files with findings or real errors.
 - **0.0.8** — Far fewer false alarms on ordinary documents: visible-only findings top out at Suspicious; code
   examples count as examples; status badges are no longer "image links that leak data"; "Developer mode" is no
   longer a jailbreak phrase; desktop notifications for background scans now default to Malicious only (existing
