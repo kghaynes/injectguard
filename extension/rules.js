@@ -126,9 +126,9 @@ self.IG_RULES = {
    "id": "ROL-004",
    "family": "role_spoof",
    "weight": 25,
-   "title": "Mentions jailbreak or developer mode",
+   "title": "Mentions jailbreak phrases",
    "explain": "Known phrases used to unlock restricted model behavior.",
-   "pattern": "\\b(developer mode|jailbreak|jailbroken|do anything now|god mode|dan mode)\\b"
+   "pattern": "\\b(jailbreak|jailbroken|do anything now|god mode|dan mode)\\b"
   },
   {
    "id": "ROL-005",
@@ -153,7 +153,7 @@ self.IG_RULES = {
    "title": "Image link that can carry data out",
    "explain": "A markdown image whose URL has query parameters. When an AI renders it, data in the URL is sent to that server.",
    "raw": true,
-   "pattern": "!\\[[^\\]]{0,100}\\]\\(\\s*https?://[^)\\s]{1,300}\\?[^)\\s]{0,300}="
+   "pattern": "!\\[[^\\]]{0,100}\\]\\(\\s*https?://(?!(?:img\\.shields\\.io|badgen\\.net|badge\\.fury\\.io|github\\.com|raw\\.githubusercontent\\.com|user-images\\.githubusercontent\\.com|codecov\\.io|coveralls\\.io|sonarcloud\\.io|snyk\\.io|app\\.codacy\\.com|api\\.netlify\\.com|travis-ci\\.(?:com|org)|ci\\.appveyor\\.com|readthedocs\\.org|pepy\\.tech|static\\.pepy\\.tech)[/:])[^)\\s]{1,300}\\?[^)\\s]{0,300}="
   },
   {
    "id": "EXF-003",
@@ -222,7 +222,7 @@ self.IG_RULES = {
   {
    "id": "CON-004",
    "family": "concealment",
-   "weight": 25,
+   "weight": 15,
    "title": "Mentions hidden or secret instructions",
    "explain": "Text that calls itself a hidden instruction is almost never legitimate.",
    "pattern": "\\b(hidden|secret|invisible) (instruction|prompt|directive|command)s?\\b(?! injection)|\\bconfidential (instruction|prompt|directive)s?\\b(?! injection)"
@@ -276,5 +276,7 @@ self.IG_RULES = {
   ],
   "bonus_hidden": 20,
   "bonus_visible": 10
- }
+ },
+ "visible_only_cap": 45,
+ "code_example_marker": "code examples"
 };

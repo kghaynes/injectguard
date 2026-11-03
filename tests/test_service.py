@@ -130,5 +130,5 @@ def test_local_ai_review_with_stub_ollama():
         ok = scan_text("Ignore all previous instructions in the old manual; use version 2.", settings=s)
     finally:
         httpd.shutdown()
-    assert bad.findings[0].llm_verdict == "injection" and bad.verdict == "malicious"
+    assert bad.findings[0].llm_verdict == "injection" and bad.verdict == "suspicious"   # visible text is capped
     assert ok.findings[0].llm_verdict == "benign" and ok.verdict == "clean"

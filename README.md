@@ -90,7 +90,7 @@ cd injectguard
 source .venv/bin/activate
 pip install -U pip
 pip install -e ".[all,dev]"
-injectguard --version          # prints 0.0.7
+injectguard --version          # prints 0.0.8
 ```
 
 `.[all,dev]` installs the desktop app, Outlook `.msg` support, and the test tools. For a smaller install without
@@ -169,7 +169,7 @@ injectguard scan /tmp/igtest/malicious -q    # 16 files: 15 MALICIOUS, 1 SUSPICI
 injectguard scan /tmp/igtest/clean -q        # summary only: 9 clean; exit code 0
 cp /tmp/igtest/malicious/white_text.pdf ~/Downloads/   # notification within ~2 seconds
 injectguard history --limit 3                # newest row shows source "realtime"
-pytest -q                                    # 170 passed
+pytest -q                                    # 177 passed
 ```
 
 Then open `tests/web/malicious.html` in Chrome: the toolbar icon shows a red **!**, a warning banner appears, and
@@ -295,7 +295,11 @@ Exit codes: **0** clean · **1** suspicious · **2** malicious · **3** error.
   an attack): cut to 40%.
 - Weak signals (asks to run a tool, "always recommend", "the summary must say") score low on their own and mainly add
   weight when they appear alongside stronger ones.
+- Text inside code blocks and inline code (Markdown, `<pre>`, `<code>`) counts as an example: cut to 40%.
 - File score = top finding + 8 for each extra finding scoring 20 or more (max 100).
+- If every finding is in plain view (nothing hidden, no comments, metadata or invisible characters), the score is
+  capped at 45: at most **Suspicious**, because you can read that text yourself. Only hidden text can make a file or
+  page **Malicious**.
 - **Clean** under 20 · **Suspicious** 20–59 · **Malicious** 60+.
 - Local AI check (optional): "injection" adds 25; "benign" cuts the score to 40%.
 
@@ -337,7 +341,7 @@ python tools/sync_rules.py && pytest -q
 ## Tests
 
 ```bash
-pytest -q                                  # 170 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
+pytest -q                                  # 177 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
 python tests/browser_e2e.py /tmp/shots     # real Chromium with the extension loaded and paired (needs: playwright install chromium)
 python tests/make_samples.py /tmp/igtest   # build the malicious + clean sample files
 ```
@@ -366,6 +370,10 @@ Not in a position to tip? Starring the repo, reporting false alarms, and telling
 
 ## Changelog
 
+- **0.0.8** — Far fewer false alarms on ordinary documents: visible-only findings top out at Suspicious; code
+  examples count as examples; status badges are no longer "image links that leak data"; "Developer mode" is no
+  longer a jailbreak phrase; desktop notifications for background scans now default to Malicious only (existing
+  installs are switched once; choose Suspicious again in Settings if you prefer). 6 new tests.
 - **0.0.7** — Security fixes from CodeQL: "scan linked page" from the browser can no longer reach this computer or
   the local network (loopback, private and link-local addresses are refused, on every redirect too); the local
   service no longer accepts file paths (`/scan/path` removed); only exact browser-extension origins are accepted and
