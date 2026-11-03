@@ -52,9 +52,13 @@ def extract_pdf(data: bytes, location: str = "PDF") -> Tuple[List[Segment], List
     segs: List[Segment] = []
     embedded: List[Tuple[str, bytes]] = []
     notes: List[str] = []
-    doc = fitz.open(stream=data, filetype="pdf")
+    from ..engine import Unreadable
+    try:
+        doc = fitz.open(stream=data, filetype="pdf")
+    except Exception as e:  # noqa: BLE001
+        raise ValueError(f"not a readable PDF (damaged or incomplete): {e}") from None
     if doc.needs_pass:
-        raise ValueError("PDF is password-protected")
+        raise Unreadable("Password-protected PDF; its contents can't be checked")
 
     for k, v in (doc.metadata or {}).items():
         if v and isinstance(v, str) and len(v) > 3:

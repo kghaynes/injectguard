@@ -46,6 +46,12 @@ def scan_bytes(name: str, data: bytes, settings: Optional[Settings] = None, dept
     try:
         kind, segs, children, notes = extract(name, data)
         res.kind = kind
+    except Unreadable as e:
+        res.verdict = "skipped"
+        res.errors.append(str(e))
+        res.scanned_at = _now()
+        res.duration_ms = int((time.perf_counter() - t0) * 1000)
+        return res
     except Exception as e:  # noqa: BLE001
         res.verdict = "error"
         res.errors.append(f"Could not read file: {e}")
@@ -69,19 +75,39 @@ def scan_bytes(name: str, data: bytes, settings: Optional[Settings] = None, dept
     return _finish(res, findings, settings, t0)
 
 
+SF_DATALESS = 0x40000000   # macOS: file content lives in iCloud and is not on this disk
+
+
+class Unreadable(Exception):
+    """A file InjectGuard can't look inside (password, not downloaded). Reported as skipped, not as an error."""
+
+
+def _skipped(p, reason: str) -> ScanResult:
+    return ScanResult(target=str(p), kind="unknown", verdict="skipped", errors=[reason], scanned_at=_now())
+
+
 def scan_file(path: str | os.PathLike, settings: Optional[Settings] = None) -> ScanResult:
     p = Path(path)
     max_mb = (settings or {}).get("max_file_mb", 50)
     try:
-        size = p.stat().st_size
+        st = p.stat()
     except OSError as e:
         return ScanResult(target=str(p), kind="unknown", verdict="error", errors=[str(e)], scanned_at=_now())
-    if size > max_mb * 1024 * 1024:
-        return ScanResult(target=str(p), kind="unknown", verdict="skipped",
-                          errors=[f"File is {size // (1024 * 1024)} MB, over the {max_mb} MB limit"], scanned_at=_now())
-    data = p.read_bytes()
-    res = scan_bytes(str(p), data, settings)
-    return res
+    # Checked before reading so a scan never pulls gigabytes down from iCloud.
+    if getattr(st, "st_flags", 0) & SF_DATALESS:
+        return _skipped(p, "Stored in iCloud and not downloaded to this Mac (open it once to scan it)")
+    if st.st_size == 0:
+        return _skipped(p, "Empty file (0 bytes)")
+    if st.st_size > max_mb * 1024 * 1024:
+        return _skipped(p, f"File is {st.st_size // (1024 * 1024)} MB, over the {max_mb} MB limit")
+    try:
+        data = p.read_bytes()
+    except OSError as e:
+        return ScanResult(target=str(p), kind="unknown", verdict="error", errors=[f"Could not read file: {e}"],
+                          scanned_at=_now())
+    if not data:
+        return _skipped(p, "Empty file (0 bytes)")
+    return scan_bytes(str(p), data, settings)
 
 
 def scan_segments_result(target: str, kind: str, segments: List[Segment],
