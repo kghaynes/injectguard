@@ -199,7 +199,20 @@ def extract_html(html: str, location: str = "HTML", base_bg=(255, 255, 255)) -> 
         segs.append(Segment(txt, f"{location}: <{tag}>", HIDDEN, reason))
         el.decompose()
 
-    # 4. What is left is what a person sees
+    # 4. Code examples (<pre>, <code>) are shown to people as examples, not instructions
+    from ..rules import CODE_MARK
+    code = []
+    for el in (root.find_all(["pre", "code"]) if root else []):
+        if el.find_parent(["pre", "code"]):
+            continue
+        t = el.get_text(" ", strip=True)
+        if t:
+            code.append(t)
+        el.decompose()
+    if code:
+        segs.append(Segment("\n".join(code), f"{location}: {CODE_MARK}", VISIBLE))
+
+    # 5. What is left is what a person sees
     visible = root.get_text(" ", strip=True) if root else ""
     if visible:
         segs.append(Segment(visible, f"{location}: visible text", VISIBLE))

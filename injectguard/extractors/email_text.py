@@ -11,6 +11,8 @@ from .html import extract_html
 
 HTML_COMMENT = re.compile(r"<!--(.*?)-->", re.S)
 MD_REFDEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*\S+(?:\s+[\"'(](.+?)[\"')])?\s*$", re.M)
+MD_FENCE = re.compile(r"^(```|~~~)[^\n]*\n.*?^\1[ \t]*$", re.M | re.S)
+MD_INLINE_CODE = re.compile(r"`[^`\n]+`")
 MD_IMG_ALT = re.compile(r"!\[([^\]]{20,})\]\(")
 HAS_TAG = re.compile(r"<(div|span|p|font|section|details|a|img|style)\b", re.I)
 
@@ -27,6 +29,13 @@ def extract_text(data: bytes, location="Text", markdown=False) -> List[Segment]:
                 segs.append(Segment(m.group(1), f"{location}: HTML comment", COMMENT,
                                     "HTML comment (not shown when rendered)"))
         body = HTML_COMMENT.sub(" ", text)
+        code = [m.group(0) for m in MD_FENCE.finditer(body)]
+        body = MD_FENCE.sub(" ", body)
+        code += MD_INLINE_CODE.findall(body)
+        body = MD_INLINE_CODE.sub(" ", body)
+        if code:
+            from ..rules import CODE_MARK
+            segs.append(Segment("\n".join(code), f"{location}: {CODE_MARK}", VISIBLE))
         for m in MD_REFDEF.finditer(body):
             segs.append(Segment(m.group(0), f"{location}: link reference definition", HIDDEN,
                                 "Markdown reference line (not shown when rendered)"))

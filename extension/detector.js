@@ -7,6 +7,9 @@
   const TIERS = R.hidden_reason_multiplier || [];
   const DUP_MIN = R.duplicate_min_chars || 20;
   const COMBO = R.combo;
+  const VISIBLE_CAP = R.visible_only_cap ?? 45;
+  const CODE_MARK = R.code_example_marker || 'code examples';
+  const INVISIBLE_FAMILIES = new Set(['invisible_unicode', 'encoded_payload']);
   // Text that addresses an AI *and* tells it to do something is an injection however it is worded.
   function comboFinding(hits, seg) {
     if (!COMBO || !hits.length) return null;
@@ -113,6 +116,8 @@
       if (hasInv) {
         w += 20; title += ' (split with invisible characters)';
         explain += ' Invisible characters were inserted inside the words to slip past filters.';
+      } else if (seg.visibility === 'visible' && String(seg.location || '').endsWith(CODE_MARK)) {
+        w = Math.floor(w * 0.4); title += ' (in a code example)';
       } else if (seg.visibility === 'visible' && isQuoted(raw, rs, re)) {
         w = Math.floor(w * 0.4); title += ' (quoted - likely a discussion)';
       }
@@ -298,7 +303,10 @@
     if (!fs.length) return [0, 'clean'];
     const s = fs.map(f => f.score).sort((a, b) => b - a);
     const extra = s.slice(1).filter(x => x >= TH.suspicious).length;
-    const sc = Math.min(100, s[0] + 8 * Math.min(extra, 6));
+    let sc = Math.min(100, s[0] + 8 * Math.min(extra, 6));
+    // Everything in plain view: the reader can see it for themselves, so at most "suspicious".
+    const hidden = f => f.visibility !== 'visible' || INVISIBLE_FAMILIES.has(f.family) || /^(B64:|UNI-)/.test(f.rule_id);
+    if (!fs.some(f => f.score >= TH.suspicious && hidden(f))) sc = Math.min(sc, VISIBLE_CAP);
     return [sc, sc >= TH.malicious ? 'malicious' : sc >= TH.suspicious ? 'suspicious' : 'clean'];
   }
 

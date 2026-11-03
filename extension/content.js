@@ -104,6 +104,7 @@
     elements = [];
     cacheReset();
     const visible = [];
+    const codeText = [];
     const groups = new Map();   // root element -> {reason, texts}
     const add = (text, location, visibility, reason, el) => {
       const i = segs.length;
@@ -135,7 +136,8 @@
         if (info) {
           if (!groups.has(info.root)) groups.set(info.root, { reason: info.reason, texts: [] });
           groups.get(info.root).texts.push(t.trim());
-        } else if (visible.length < MAX_VISIBLE) visible.push(t.trim());
+        } else if (el.closest('pre, code')) codeText.push(t.trim());   // shown as an example, not an instruction
+        else if (visible.length < MAX_VISIBLE) visible.push(t.trim());
       }
       // open shadow roots
       rootNode.querySelectorAll && rootNode.querySelectorAll('*').forEach(e => { if (e.shadowRoot) walk(e.shadowRoot); });
@@ -172,6 +174,7 @@
     });
     if (document.title) add(document.title, '<title>', 'visible', null, null);
     if (visible.length) add(visible.join(' '), 'visible page text', 'visible', null, document.body);
+    if (codeText.length) add(codeText.join('\n'), `visible page text: ${self.IG_RULES.code_example_marker || 'code examples'}`, 'visible', null, null);
     return segs;
   }
   function cacheReset() { cache = new WeakMap(); }

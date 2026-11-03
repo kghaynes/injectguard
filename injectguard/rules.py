@@ -24,6 +24,9 @@ TH_MALICIOUS = RULESET["thresholds"]["malicious"]
 REASON_TIERS = RULESET.get("hidden_reason_multiplier", [])
 DUP_MIN = RULESET.get("duplicate_min_chars", 20)
 COMBO = RULESET.get("combo")
+VISIBLE_CAP = RULESET.get("visible_only_cap", 45)
+CODE_MARK = RULESET.get("code_example_marker", "code examples")
+INVISIBLE_FAMILIES = {"invisible_unicode", "encoded_payload"}
 
 
 def multiplier(visibility: str, reason) -> float:
@@ -150,6 +153,9 @@ def run_phrase_rules(raw: str, seg: Segment, *, extra_weight: int = 0, rule_pref
             title += " (split with invisible characters)"
             explain += " Invisible characters were inserted inside the words to slip past filters."
         # Discussion: visible text that puts the phrase in quotes is usually an article about injection.
+        elif seg.visibility == VISIBLE and seg.location.endswith(CODE_MARK):
+            weight = int(weight * 0.4)
+            title += " (in a code example)"
         elif seg.visibility == VISIBLE and _is_quoted(raw, rs, re_):
             weight = int(weight * 0.4)
             title += " (quoted - likely a discussion)"
@@ -395,12 +401,20 @@ def dedupe(findings: List[Finding]) -> List[Finding]:
     return sorted(out, key=lambda f: -f.score)
 
 
+def _is_hidden_finding(f: Finding) -> bool:
+    return f.visibility != VISIBLE or f.family in INVISIBLE_FAMILIES or f.rule_id.startswith(("B64:", "UNI-"))
+
+
 def overall(findings: List[Finding]) -> Tuple[int, str]:
     if not findings:
         return 0, "clean"
     scores = sorted((f.score for f in findings), reverse=True)
     extra = sum(1 for s in scores[1:] if s >= TH_SUSPICIOUS)
     score = min(100, scores[0] + 8 * min(extra, 6))
+    # InjectGuard is about text people can't see. If every real finding is in plain view, the reader can see it
+    # for themselves: at most "suspicious".
+    if not any(_is_hidden_finding(f) for f in findings if f.score >= TH_SUSPICIOUS):
+        score = min(score, VISIBLE_CAP)
     if score >= TH_MALICIOUS:
         return score, "malicious"
     if score >= TH_SUSPICIOUS:

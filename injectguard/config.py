@@ -19,7 +19,8 @@ DEFAULTS = {
     "llm_url": "http://127.0.0.1:11434",
     "llm_model": "llama3.2:3b",
     "notify": True,
-    "notify_min_verdict": "suspicious",      # suspicious | malicious
+    "notify_min_verdict": "malicious",       # suspicious | malicious
+    "settings_version": 2,
     "auto_quarantine": False,
     "quarantine_min_score": 80,
     "max_file_mb": 50,
@@ -54,7 +55,14 @@ class Settings(dict):
         s.path = app_dir() / "settings.json"
         if s.path.exists():
             try:
-                s.update(json.loads(s.path.read_text(encoding="utf-8")))
+                saved = json.loads(s.path.read_text(encoding="utf-8"))
+                s.update(saved)
+                if saved.get("settings_version", 1) < 2:
+                    # 0.0.8: background alerts only for "malicious" (visible-only findings now top out at suspicious)
+                    if saved.get("notify_min_verdict") == "suspicious":
+                        s["notify_min_verdict"] = "malicious"
+                    s["settings_version"] = 2
+                    s.save()
             except json.JSONDecodeError:
                 pass
         return s
