@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
+import ipaddress
 import os
+import socket
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -95,10 +98,47 @@ def scan_text(text: str, label: str = "Pasted text", settings: Optional[Settings
     return scan_segments_result(label, "text", [Segment(text, label)], settings)
 
 
-def scan_url(url: str, settings: Optional[Settings] = None, timeout: float = 20.0) -> ScanResult:
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 InjectGuard/1.0"})
+class BlockedAddress(ValueError):
+    pass
+
+
+def _check_url(url: str, allow_private: bool) -> None:
+    """Only http(s). Unless allowed, refuse addresses inside this computer or the local network
+    (loopback, private ranges, link-local such as cloud metadata at 169.254.169.254)."""
+    u = urllib.parse.urlsplit(url)
+    if u.scheme not in ("http", "https") or not u.hostname:
+        raise BlockedAddress("only http(s) addresses can be scanned")
+    if allow_private:
+        return
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        infos = socket.getaddrinfo(u.hostname, u.port or (443 if u.scheme == "https" else 80), proto=socket.IPPROTO_TCP)
+    except socket.gaierror as e:
+        raise BlockedAddress(f"cannot resolve {u.hostname}: {e}") from None
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved
+                or ip.is_unspecified or (ip.version == 6 and ip.ipv4_mapped and not ip.ipv4_mapped.is_global)):
+            raise BlockedAddress(f"{u.hostname} points to a local or private address ({ip}); not scanned")
+
+
+def _opener(allow_private: bool):
+    class Redirects(urllib.request.HTTPRedirectHandler):
+        max_redirections = 5
+
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            _check_url(newurl, allow_private)   # every hop is checked, not just the first
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+    return urllib.request.build_opener(Redirects)
+
+
+def scan_url(url: str, settings: Optional[Settings] = None, timeout: float = 20.0,
+             allow_private: bool = True) -> ScanResult:
+    """Fetch and scan a page or linked file. allow_private=False for requests that come from the browser
+    (a web page must not be able to steer the scanner at the local network)."""
+    try:
+        _check_url(url, allow_private)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 InjectGuard/1.0"})
+        with _opener(allow_private).open(req, timeout=timeout) as r:
             data = r.read(20 * 1024 * 1024)
             ctype = r.headers.get("Content-Type", "")
     except Exception as e:  # noqa: BLE001
