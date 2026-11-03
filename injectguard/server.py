@@ -46,13 +46,12 @@ class _Handler(BaseHTTPRequestHandler):
         return host in ("127.0.0.1", "localhost", "[::1]")
 
     def _cors(self):
-        origin = self.headers.get("Origin") or ""
-        m = EXT_ORIGIN.fullmatch(origin)
-        if m:
-            self.send_header("Access-Control-Allow-Origin", m.group(0))
+        # Only browser extensions get past _origin_ok, so a fixed "*" is safe here and nothing from the request is
+        # copied into a response header. Auth is the X-InjectGuard-Token header, never cookies.
+        if EXT_ORIGIN.fullmatch(self.headers.get("Origin") or ""):
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Headers", "Content-Type, X-InjectGuard-Token")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            self.send_header("Vary", "Origin")
 
     def _send(self, code: int, obj):
         body = json.dumps(obj).encode()

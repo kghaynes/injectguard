@@ -92,6 +92,11 @@ def test_odd_origins_rejected(api, origin):
     assert code == 403
 
 
-def test_cors_echoes_only_valid_extension_origin(api):
+def test_cors_header_is_fixed_for_extensions(api):
     code, _, headers = _post(api, "/scan/text", {"text": "hi"})
-    assert code == 200 and headers.get("Access-Control-Allow-Origin") == EXT
+    assert code == 200 and headers.get("Access-Control-Allow-Origin") == "*"
+
+
+def test_web_page_gets_no_cors_header(api):
+    code, _, headers = _post(api, "/scan/text", {"text": "hi"}, origin="https://evil.example")
+    assert code == 403 and "Access-Control-Allow-Origin" not in headers
