@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hmac
 import json
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable, Optional
@@ -20,6 +21,8 @@ from .config import Settings, api_token
 from .models import Segment, ScanResult
 
 MAX_BODY = 12 * 1024 * 1024
+# chrome-extension://<32 letters a-p>, moz-extension://<uuid>, extension://<id>; nothing else is echoed back
+EXT_ORIGIN = re.compile(r"(?:chrome-extension|moz-extension|extension)://[A-Za-z0-9-]{1,64}/?")
 VALID_VIS = {"visible", "hidden", "comment", "metadata"}
 
 
@@ -34,7 +37,7 @@ class _Handler(BaseHTTPRequestHandler):
     # ---------------------------------------------------------- helpers
     def _origin_ok(self) -> bool:
         origin = self.headers.get("Origin")
-        if origin and not origin.startswith(("chrome-extension://", "moz-extension://", "extension://")):
+        if origin and not EXT_ORIGIN.fullmatch(origin):
             return False
         allowed = self.app.settings.get("allowed_extension_ids") or []
         if origin and allowed and origin.split("://", 1)[1].strip("/") not in allowed:
@@ -43,12 +46,12 @@ class _Handler(BaseHTTPRequestHandler):
         return host in ("127.0.0.1", "localhost", "[::1]")
 
     def _cors(self):
-        origin = self.headers.get("Origin")
-        if origin and origin.startswith(("chrome-extension://", "moz-extension://")):
-            self.send_header("Access-Control-Allow-Origin", origin)
+        # Only browser extensions get past _origin_ok, so a fixed "*" is safe here and nothing from the request is
+        # copied into a response header. Auth is the X-InjectGuard-Token header, never cookies.
+        if EXT_ORIGIN.fullmatch(self.headers.get("Origin") or ""):
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Headers", "Content-Type, X-InjectGuard-Token")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            self.send_header("Vary", "Origin")
 
     def _send(self, code: int, obj):
         body = json.dumps(obj).encode()
@@ -123,11 +126,8 @@ class _Handler(BaseHTTPRequestHandler):
                 url = str(body.get("url", ""))
                 if not url.startswith(("http://", "https://")):
                     return self._send(400, {"error": "http(s) URL required"})
-                res = engine.scan_url(url, s)
+                res = engine.scan_url(url, s, allow_private=False)
                 src = "browser"
-            elif path == "/scan/path":
-                res = engine.scan_file(str(body.get("path", "")), s)
-                src = "api"
             else:
                 return self._send(404, {"error": "not found"})
         except Exception as e:  # noqa: BLE001

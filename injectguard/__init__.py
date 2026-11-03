@@ -1,2 +1,2 @@
 """InjectGuard - finds hidden prompt injections in web pages and documents."""
-__version__ = "0.0.6"
+__version__ = "0.0.7"
