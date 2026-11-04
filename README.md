@@ -26,6 +26,7 @@ blocks your work. Everything runs on your computer.
 ## Contents
 
 - [Screenshots](#screenshots)
+- [Real-world results](#real-world-results)
 - [Install on macOS](#install-on-macos)
 - [Install on Windows or Linux](#install-on-windows-or-linux)
 - [Command line](#command-line)
@@ -54,6 +55,8 @@ was hidden, and the exact text.
 
 **Desktop app: dashboard.** Protection status, last 7 days, and recent alerts.
 
+![InjectGuard on macOS: protection on, background service running](docs/screenshots/real-mac-dashboard.png)
+
 ![Desktop app dashboard](docs/screenshots/desktop-dashboard.png)
 
 <details>
@@ -64,6 +67,25 @@ was hidden, and the exact text.
 ![Settings dialog](docs/screenshots/desktop-settings.png)
 
 </details>
+
+## Real-world results
+
+Tested on the author's own Mac and browser, not just on the built-in samples.
+
+| Test | Result |
+|---|---|
+| [Agent Arena](https://feedbagel.com/post/agent-arena-testing-ai-agents-against-prompt-injection-attacks) test page (10 hidden attack types) | **Malicious, 93**, with every hiding trick listed |
+| A busy LinkedIn feed (hidden layout copies, menus, screen-reader text) | **Clean** |
+| A full `~/Documents` folder: 10,702 files, 13 years of PDFs, Office files, email and web exports | **0 malicious, 0 errors**, 1 suspicious (an old blog export with how-to text; the local AI check agreed it was benign) |
+
+<p align="center">
+  <img src="docs/screenshots/real-agent-arena.png" alt="InjectGuard flagging the Agent Arena test page as malicious, score 93" width="360">
+  &nbsp;
+  <img src="docs/screenshots/real-linkedin.png" alt="InjectGuard showing a LinkedIn feed as clean" width="360">
+</p>
+
+The first versions flagged normal sites and documents. Each false alarm found on real pages and files was turned
+into a test so it can't come back; the [changelog](CHANGELOG.md) lists them.
 
 ---
 
@@ -272,6 +294,22 @@ Exit codes: **0** clean · **1** suspicious · **2** malicious · **3** error.
 | Markdown / text | Comments, link reference lines, image alt text, hidden inline HTML, invisible Unicode |
 | ZIP | Members scanned (limited to 200 MB uncompressed) |
 
+**What it skips, and says so**
+
+Files it can't look inside are listed as **Skipped** with the reason, never as clean and never as errors:
+
+| File | Why |
+|---|---|
+| iCloud files not downloaded to this Mac ("Optimize Mac Storage") | Skipped *without reading*, so a scan never pulls gigabytes from iCloud. They're scanned once they're on disk. |
+| Finder aliases (shortcuts named like `report.xlsx`) | The original is scanned where it lives. |
+| Password-protected or rights-managed PDFs and Office files | Contents are encrypted. |
+| Old `.doc` / `.xls` / `.ppt` files renamed to the new extensions | Old binary formats aren't supported yet. |
+| Empty, damaged or partly downloaded files | Nothing reliable to read. |
+| Office lock files (`~$Budget.xlsx`, `.~lock.*`) | Not documents; never scanned. |
+
+Files named `.xlsx` / `.docx` / `.pdf` that are really HTML or CSV (common in school and web-system exports) are
+recognised by their content and scanned normally.
+
 **What it looks for**
 
 - 27 phrase rules in six groups: instruction override, fake system/role messages and fake authority, data theft,
@@ -372,47 +410,14 @@ Not in a position to tip? Starring the repo, reporting false alarms, and telling
 
 ## Changelog
 
-- **0.0.14** — Stray zero-width and text-direction characters (left behind by copying from web pages, Outlook or
-  Word) no longer make a file malicious; they only count when they hide an instruction or a message. The scan
-  summary prints after the findings.
-- **0.0.13** — macOS Finder aliases (shortcuts that carry a document's name, like `report.xlsx` or `paper.pdf`) are
-  skipped instead of misread; `.pdf` files that aren't PDFs are identified by content; damaged PDFs are skipped, not
-  errors. Stricter text detection, so binary data is never scanned as text.
-- **0.0.12** — Files named `.docx/.xlsx/.pptx` that aren't really Office files are identified by their content:
-  HTML or CSV tables (common in school and web-system exports) are scanned as such; anything else, and damaged or
-  partly downloaded Office files, are skipped with a plain reason instead of "File is not a zip file".
-- **0.0.11** — Password-protected or rights-managed Office files (and old .doc/.xls/.ppt files renamed to the new
-  extensions) are reported as skipped with a plain reason instead of "File is not a zip file". Office and
-  LibreOffice lock files (`~$name.xlsx`, `.~lock.*`) are no longer scanned.
-- **0.0.10** — Fixes a crash on documents with long runs of a single invisible character (common in Word and web
-  exports). One file that fails to scan is now reported as an error and the folder or scheduled scan carries on.
-- **0.0.9** — Files InjectGuard can't look inside are reported as **skipped** with a plain reason instead of
-  errors: iCloud placeholders not downloaded to this Mac (skipped without reading, so scans never trigger iCloud
-  downloads), empty files, and password-protected PDFs. `scan -q` lists only files with findings or real errors.
-- **0.0.8** — Far fewer false alarms on ordinary documents: visible-only findings top out at Suspicious; code
-  examples count as examples; status badges are no longer "image links that leak data"; "Developer mode" is no
-  longer a jailbreak phrase; desktop notifications for background scans now default to Malicious only (existing
-  installs are switched once; choose Suspicious again in Settings if you prefer). 6 new tests.
-- **0.0.7** — Security fixes from CodeQL: "scan linked page" from the browser can no longer reach this computer or
-  the local network (loopback, private and link-local addresses are refused, on every redirect too); the local
-  service no longer accepts file paths (`/scan/path` removed); only exact browser-extension origins are accepted and
-  echoed back. 18 new security tests.
-- **0.0.6** — Covers all 10 Agent Arena vector types: new output-manipulation and fake-authority rules, a
-  combination rule (addresses an AI + gives an instruction), zero-width message decoding, micro text (small and
-  faint), every `data-*` attribute in the extension, and far-right off-screen text. 24 new tests.
-- **0.0.5** — Fewer false positives on pages *about* prompt injection: "hidden prompt injection" no longer counts as
-  a hidden instruction, and the same text repeated in several places (meta description, og:description,
-  twitter:description) counts once. Added the Agent Arena public test page to the README.
-- **0.0.4** — Fixes pip install (packaging metadata error introduced in 0.0.2).
-- **0.0.3** — Fewer false positives on real sites (found on LinkedIn): hidden copies of visible text count as
-  visible; layout-style hiding scores lower than camouflage; tighter rules for "you are now…", "never show… anyone",
-  "confidential message", data-sending (now needs an outside address), and quoted discussions. **Reveal hidden
-  text** shows only real findings. Added 68 false-positive tests.
-- **0.0.2** — First public release.
+See [CHANGELOG.md](CHANGELOG.md). Latest: **0.0.14**, stray zero-width characters no longer make a file
+malicious. Every release is on the [Releases page](https://github.com/kghaynes/injectguard/releases).
 
 ## Known limits
 
 - Text inside images (scanned PDFs, screenshots) is not read yet.
+- Old binary Office files (`.doc`, `.xls`, `.ppt`) are not read yet.
+- iCloud files that aren't downloaded can't be checked until they are (open them, or use Finder → **Keep Downloaded**).
 - A well-written injection in plain visible text with no telltale phrasing can pass the rules; the local AI check
   is the mitigation.
 - Closed shadow DOM on web pages can't be read.
