@@ -15,6 +15,7 @@ EXT_KIND = {
     ".yaml": "text", ".yml": "text", ".rtf": "text", ".eml": "eml", ".msg": "msg", ".zip": "zip",
 }
 SUPPORTED = set(EXT_KIND)
+ALIAS_MAGIC = b"book\x00\x00\x00\x00mark\x00\x00\x00\x00"   # macOS Finder alias / bookmark file
 OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"   # Microsoft compound file (old Office, encrypted Office)
 LOCK_PREFIXES = ("~$", ".~lock.")                    # Office / LibreOffice owner files left next to open documents
 
@@ -25,7 +26,9 @@ OFFICE = ("docx", "xlsx", "pptx")
 def _sniff(data: bytes) -> str:
     """What the bytes actually are, ignoring the file name."""
     head = data[:8]
-    if head.startswith(b"%PDF"):
+    if data[:16] == ALIAS_MAGIC:
+        return "alias"
+    if head.startswith(b"%PDF") or b"%PDF-" in data[:1024]:   # PDF spec allows junk before the header
         return "pdf"
     if head == OLE_MAGIC:
         return "ole"
@@ -36,18 +39,33 @@ def _sniff(data: bytes) -> str:
         return "html"
     if body.startswith(b"<?xml"):
         return "xml"
-    for enc in ("utf-8", "utf-16"):
+    return "text" if _looks_like_text(data[:4096]) else "binary"
+
+
+def _looks_like_text(chunk: bytes) -> bool:
+    if chunk[:2] in (b"\xff\xfe", b"\xfe\xff"):            # UTF-16 only with its byte-order mark
         try:
-            data[:4096].decode(enc)
-            return "text"
+            t = chunk.decode("utf-16")
         except UnicodeDecodeError:
-            continue
-    return "binary"
+            return False
+    else:
+        try:
+            t = chunk.decode("utf-8")
+        except UnicodeDecodeError as e:
+            if e.start < len(chunk) - 4:                     # allow a multi-byte character cut at the end
+                return False
+            t = chunk[:e.start].decode("utf-8")
+    if not t:
+        return False
+    printable = sum(1 for c in t if c.isprintable() or c in "\t\r\n")
+    return printable / len(t) >= 0.95
 
 
 def detect_kind(name: str, data: bytes) -> str:
     ext = PurePath(name).suffix.lower()
     real = _sniff(data)
+    if real == "alias":
+        return "alias"
     if real == "pdf":
         return "pdf"
     if real == "ole" and ext == ".msg":
@@ -69,19 +87,27 @@ def detect_kind(name: str, data: bytes) -> str:
     if ext in EXT_KIND and EXT_KIND[ext] in OFFICE:
         # Named like a new Office file but isn't one: go by what the content really is.
         return {"ole": "office-ole", "html": "html", "xml": "text", "text": "text"}.get(real, "office-unknown")
+    if ext == ".pdf":
+        return {"html": "html", "xml": "text", "text": "text"}.get(real, "misnamed")
     if ext in EXT_KIND:
         return EXT_KIND[ext]
     if real == "html":
         return "html"
     if real in ("text", "xml"):
         return "text"
-    return "unknown"
+    return "unknown"   # unsupported binary with an unknown name
 
 
 def extract(name: str, data: bytes) -> Tuple[str, List[Segment], List[Tuple[str, bytes]], List[str]]:
     """Returns (kind, segments, child_files, notes)."""
     kind = detect_kind(name, data)
     loc = PurePath(name).name or name
+    if kind == "alias":
+        from ..engine import Unreadable
+        raise Unreadable("Finder alias (a shortcut to a file stored elsewhere); the original is scanned where it lives")
+    if kind == "misnamed":
+        from ..engine import Unreadable
+        raise Unreadable(f"Named {PurePath(name).suffix} but isn't one (starts with {data[:8].hex(' ')}); not scanned")
     if kind in ("office-ole", "office-unknown"):
         from ..engine import Unreadable
         if kind == "office-ole" and "EncryptedPackage".encode("utf-16-le") in data:

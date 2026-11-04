@@ -55,8 +55,8 @@ def extract_pdf(data: bytes, location: str = "PDF") -> Tuple[List[Segment], List
     from ..engine import Unreadable
     try:
         doc = fitz.open(stream=data, filetype="pdf")
-    except Exception as e:  # noqa: BLE001
-        raise ValueError(f"not a readable PDF (damaged or incomplete): {e}") from None
+    except Exception:  # noqa: BLE001
+        raise Unreadable("Damaged or incomplete PDF; not scanned") from None
     if doc.needs_pass:
         raise Unreadable("Password-protected PDF; its contents can't be checked")
 

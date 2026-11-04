@@ -90,7 +90,7 @@ cd injectguard
 source .venv/bin/activate
 pip install -U pip
 pip install -e ".[all,dev]"
-injectguard --version          # prints 0.0.12
+injectguard --version          # prints 0.0.13
 ```
 
 `.[all,dev]` installs the desktop app, Outlook `.msg` support, and the test tools. For a smaller install without
@@ -169,7 +169,7 @@ injectguard scan /tmp/igtest/malicious -q    # 16 files: 15 MALICIOUS, 1 SUSPICI
 injectguard scan /tmp/igtest/clean -q        # summary only: 9 clean; exit code 0
 cp /tmp/igtest/malicious/white_text.pdf ~/Downloads/   # notification within ~2 seconds
 injectguard history --limit 3                # newest row shows source "realtime"
-pytest -q                                    # 191 passed
+pytest -q                                    # 195 passed
 ```
 
 Then open `tests/web/malicious.html` in Chrome: the toolbar icon shows a red **!**, a warning banner appears, and
@@ -342,7 +342,7 @@ python tools/sync_rules.py && pytest -q
 ## Tests
 
 ```bash
-pytest -q                                  # 191 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
+pytest -q                                  # 195 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
 python tests/browser_e2e.py /tmp/shots     # real Chromium with the extension loaded and paired (needs: playwright install chromium)
 python tests/make_samples.py /tmp/igtest   # build the malicious + clean sample files
 ```
@@ -371,6 +371,9 @@ Not in a position to tip? Starring the repo, reporting false alarms, and telling
 
 ## Changelog
 
+- **0.0.13** — macOS Finder aliases (shortcuts that carry a document's name, like `report.xlsx` or `paper.pdf`) are
+  skipped instead of misread; `.pdf` files that aren't PDFs are identified by content; damaged PDFs are skipped, not
+  errors. Stricter text detection, so binary data is never scanned as text.
 - **0.0.12** — Files named `.docx/.xlsx/.pptx` that aren't really Office files are identified by their content:
   HTML or CSV tables (common in school and web-system exports) are scanned as such; anything else, and damaged or
   partly downloaded Office files, are skipped with a plain reason instead of "File is not a zip file".
