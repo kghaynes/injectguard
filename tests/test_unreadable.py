@@ -48,3 +48,28 @@ def test_damaged_pdf_is_error_with_plain_reason(tmp_path):
     assert r.verdict in ("error", "clean")
     if r.verdict == "error":
         assert "Could not read file" in r.errors[0]
+
+
+OLE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+
+def test_encrypted_office_file_skipped(tmp_path):
+    p = tmp_path / "graded homework.xlsx"
+    p.write_bytes(OLE + b"\x00" * 504 + "EncryptedPackage".encode("utf-16-le") + b"\x00" * 1000)
+    r = engine.scan_file(p)
+    assert r.verdict == "skipped" and "Password-protected or rights-managed" in r.errors[0]
+
+
+def test_old_format_with_new_extension_skipped(tmp_path):
+    p = tmp_path / "renamed.docx"
+    p.write_bytes(OLE + b"\x00" * 2000)
+    r = engine.scan_file(p)
+    assert r.verdict == "skipped" and "Older Office format" in r.errors[0]
+
+
+def test_office_lock_files_are_not_scanned(tmp_path):
+    (tmp_path / "~$Budget.xlsx").write_bytes(b"\x05Ken  ")
+    (tmp_path / ".~lock.Notes.docx#").write_bytes(b"x")
+    (tmp_path / "notes.txt").write_text("hello")
+    names = [os.path.basename(str(f)) for f in engine.iter_files([str(tmp_path)])]
+    assert names == ["notes.txt"]

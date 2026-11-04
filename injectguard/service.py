@@ -14,7 +14,7 @@ from typing import Callable, Optional
 
 from . import engine, store
 from .config import Settings, app_dir
-from .extractors import SUPPORTED
+from .extractors import LOCK_PREFIXES, SUPPORTED
 from .models import ScanResult
 from .notify import notify, should_alert
 
@@ -122,7 +122,8 @@ class Protection:
 
     def _queue(self, path: str):
         p = Path(path)
-        if p.suffix.lower() not in SUPPORTED or engine.is_excluded(str(p), self.settings.get("exclusions", [])):
+        if p.suffix.lower() not in SUPPORTED or p.name.startswith(LOCK_PREFIXES) \
+                or engine.is_excluded(str(p), self.settings.get("exclusions", [])):
             return
         if str(p).startswith(str(app_dir())):
             return
