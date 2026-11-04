@@ -90,7 +90,7 @@ cd injectguard
 source .venv/bin/activate
 pip install -U pip
 pip install -e ".[all,dev]"
-injectguard --version          # prints 0.0.13
+injectguard --version          # prints 0.0.14
 ```
 
 `.[all,dev]` installs the desktop app, Outlook `.msg` support, and the test tools. For a smaller install without
@@ -169,7 +169,7 @@ injectguard scan /tmp/igtest/malicious -q    # 16 files: 15 MALICIOUS, 1 SUSPICI
 injectguard scan /tmp/igtest/clean -q        # summary only: 9 clean; exit code 0
 cp /tmp/igtest/malicious/white_text.pdf ~/Downloads/   # notification within ~2 seconds
 injectguard history --limit 3                # newest row shows source "realtime"
-pytest -q                                    # 195 passed
+pytest -q                                    # 198 passed
 ```
 
 Then open `tests/web/malicious.html` in Chrome: the toolbar icon shows a red **!**, a warning banner appears, and
@@ -279,7 +279,8 @@ Exit codes: **0** clean · **1** suspicious · **2** malicious · **3** error.
 - A combination rule: text that both addresses an AI and tells it to act gets an extra +20 when hidden (+10 when
   visible).
 - Invisible Unicode: tag characters ("ASCII smuggling") and messages encoded in zero-width characters are decoded
-  and re-scanned; other zero-width and text-direction characters are counted.
+  and re-scanned. Words split by invisible characters to dodge filters count as hidden. Stray zero-width and
+  text-direction characters on their own (common copy-paste residue) are only noted, not scored.
 - Base64 blobs are decoded and re-scanned.
 - Words that mix English letters with Cyrillic or Greek look-alikes.
 
@@ -342,7 +343,7 @@ python tools/sync_rules.py && pytest -q
 ## Tests
 
 ```bash
-pytest -q                                  # 195 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
+pytest -q                                  # 198 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
 python tests/browser_e2e.py /tmp/shots     # real Chromium with the extension loaded and paired (needs: playwright install chromium)
 python tests/make_samples.py /tmp/igtest   # build the malicious + clean sample files
 ```
@@ -371,6 +372,9 @@ Not in a position to tip? Starring the repo, reporting false alarms, and telling
 
 ## Changelog
 
+- **0.0.14** — Stray zero-width and text-direction characters (left behind by copying from web pages, Outlook or
+  Word) no longer make a file malicious; they only count when they hide an instruction or a message. The scan
+  summary prints after the findings.
 - **0.0.13** — macOS Finder aliases (shortcuts that carry a document's name, like `report.xlsx` or `paper.pdf`) are
   skipped instead of misread; `.pdf` files that aren't PDFs are identified by content; damaged PDFs are skipped, not
   errors. Stricter text detection, so binary data is never scanned as text.

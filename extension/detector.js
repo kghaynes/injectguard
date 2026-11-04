@@ -123,7 +123,8 @@
       }
       found.push({
         rule_id: prefix + r.id, family: famOverride || r.family, title, explain, score: score(w, seg.visibility, seg.hidden_reason),
-        excerpt: excerpt(raw, rs, re), location: seg.location, visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
+        excerpt: excerpt(raw, rs, re), location: seg.location, visibility: seg.visibility,
+        hidden_reason: seg.hidden_reason || (hasInv ? 'split with invisible characters' : null)
       });
     }
     return found;
@@ -193,14 +194,14 @@
       });
       extra.push({ text: zdec, location: seg.location + ' (decoded zero-width characters)', visibility: 'hidden', hidden_reason: 'zero-width encoding' });
     } else if (zw >= 3) f.push({
-      rule_id: 'UNI-ZW', family: 'invisible_unicode', title: `${zw} zero-width characters`,
+      rule_id: 'UNI-ZW', family: 'invisible_unicode', title: `${zw} zero-width characters (no hidden message)`,
       explain: 'Zero-width characters are invisible. They are used to split banned words so filters miss them, or to watermark text.',
-      score: zw < 20 ? 20 : 30, excerpt: excerpt(raw, first.zw, first.zw + 1), location: seg.location, visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
+      score: 8, excerpt: excerpt(raw, first.zw, first.zw + 1), location: seg.location, visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
     });
     if (bidi) f.push({
       rule_id: 'UNI-BIDI', family: 'invisible_unicode', title: `${bidi} text-direction override characters`,
       explain: 'Bidirectional override characters make text display in a different order than the AI reads it.',
-      score: 25, excerpt: excerpt(raw, first.bidi, first.bidi + 1), location: seg.location, visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
+      score: 8, excerpt: excerpt(raw, first.bidi, first.bidi + 1), location: seg.location, visibility: seg.visibility, hidden_reason: seg.hidden_reason || null
     });
     return [f, extra];
   }
@@ -306,7 +307,7 @@
     const extra = s.slice(1).filter(x => x >= TH.suspicious).length;
     let sc = Math.min(100, s[0] + 8 * Math.min(extra, 6));
     // Everything in plain view: the reader can see it for themselves, so at most "suspicious".
-    const hidden = f => f.visibility !== 'visible' || INVISIBLE_FAMILIES.has(f.family) || /^(B64:|UNI-)/.test(f.rule_id);
+    const hidden = f => f.visibility !== 'visible' || !!f.hidden_reason || INVISIBLE_FAMILIES.has(f.family) || /^B64:/.test(f.rule_id);
     if (!fs.some(f => f.score >= TH.suspicious && hidden(f))) sc = Math.min(sc, VISIBLE_CAP);
     return [sc, sc >= TH.malicious ? 'malicious' : sc >= TH.suspicious ? 'suspicious' : 'clean'];
   }
