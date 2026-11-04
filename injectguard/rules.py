@@ -148,7 +148,8 @@ def run_phrase_rules(raw: str, seg: Segment, *, extra_weight: int = 0, rule_pref
         title = title_prefix + rule["title"]
         explain = rule["explain"]
         # Evasion: the phrase only matched after invisible characters were removed.
-        if not rule.get("raw") and any(is_invisible(ord(c)) for c in raw[rs:re_]):
+        split = not rule.get("raw") and any(is_invisible(ord(c)) for c in raw[rs:re_])
+        if split:
             weight += 20
             title += " (split with invisible characters)"
             explain += " Invisible characters were inserted inside the words to slip past filters."
@@ -168,7 +169,7 @@ def run_phrase_rules(raw: str, seg: Segment, *, extra_weight: int = 0, rule_pref
             excerpt=_excerpt(raw, rs, re_),
             location=seg.location,
             visibility=seg.visibility,
-            hidden_reason=seg.hidden_reason,
+            hidden_reason=seg.hidden_reason or ("split with invisible characters" if split else None),
         ))
     return found
 
@@ -258,10 +259,10 @@ def check_unicode(raw: str, seg: Segment) -> Tuple[List[Finding], List[Segment]]
         pos = next(i for i, ch in enumerate(raw) if ord(ch) in ZERO_WIDTH)
         findings.append(Finding(
             rule_id="UNI-ZW", family="invisible_unicode",
-            title=f"{zw} zero-width characters",
+            title=f"{zw} zero-width characters (no hidden message)",
             explain="Zero-width characters are invisible. They are used to split banned words so filters miss them, "
                     "or to watermark text.",
-            score=20 if zw < 20 else 30, excerpt=_excerpt(raw, pos, pos + 1),
+            score=8, excerpt=_excerpt(raw, pos, pos + 1),   # stray copy-paste residue; counts only if it hides something
             location=seg.location, visibility=seg.visibility, hidden_reason=seg.hidden_reason))
     if bidi:
         pos = next(i for i, ch in enumerate(raw) if ord(ch) in BIDI)
@@ -269,7 +270,7 @@ def check_unicode(raw: str, seg: Segment) -> Tuple[List[Finding], List[Segment]]
             rule_id="UNI-BIDI", family="invisible_unicode",
             title=f"{bidi} text-direction override characters",
             explain="Bidirectional override characters make text display in a different order than the AI reads it.",
-            score=25, excerpt=_excerpt(raw, pos, pos + 1),
+            score=8, excerpt=_excerpt(raw, pos, pos + 1),   # normal in right-to-left text; informational
             location=seg.location, visibility=seg.visibility, hidden_reason=seg.hidden_reason))
     return findings, extra
 
@@ -404,7 +405,9 @@ def dedupe(findings: List[Finding]) -> List[Finding]:
 
 
 def _is_hidden_finding(f: Finding) -> bool:
-    return f.visibility != VISIBLE or f.family in INVISIBLE_FAMILIES or f.rule_id.startswith(("B64:", "UNI-"))
+    """Hidden from a person: off-screen/camouflaged, comment/metadata, invisible-character tricks, encoded payloads."""
+    return f.visibility != VISIBLE or bool(f.hidden_reason) or f.family in INVISIBLE_FAMILIES \
+        or f.rule_id.startswith("B64:")
 
 
 def overall(findings: List[Finding]) -> Tuple[int, str]:

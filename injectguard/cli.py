@@ -64,6 +64,7 @@ def cmd_scan(a, s):
         Path(a.report).write_text(to_json(results) if a.report.endswith(".json") else to_html(results), encoding="utf-8")
         print(f"Report written to {a.report}", file=sys.stderr)
     if not a.json:
+        sys.stdout.flush()   # findings first, summary last, even when piped through tail
         n = {k: sum(1 for r in results if r.verdict == k) for k in ("malicious", "suspicious", "clean", "skipped", "error")}
         print(col("dim", f"\n{len(results)} scanned · {n['malicious']} malicious · {n['suspicious']} suspicious · "
                          f"{n['clean']} clean · {n['skipped']} skipped · {n['error']} errors"), file=sys.stderr)
