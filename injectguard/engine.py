@@ -15,7 +15,7 @@ from typing import Callable, Iterable, Iterator, List, Optional
 
 from . import llm
 from .config import Settings
-from .extractors import SUPPORTED, extract
+from .extractors import LOCK_PREFIXES, SUPPORTED, extract
 from .models import Finding, ScanResult, Segment
 from .rules import overall, scan_segments
 
@@ -204,6 +204,8 @@ def iter_files(roots: Iterable[str], exclusions: Iterable[str] = ()) -> Iterator
             dirnames[:] = [d for d in dirnames if not d.startswith(".") and not is_excluded(os.path.join(dirpath, d) + "/", excl)]
             for f in filenames:
                 fp = os.path.join(dirpath, f)
+                if f.startswith(LOCK_PREFIXES):
+                    continue
                 if Path(f).suffix.lower() in SUPPORTED and not is_excluded(fp, excl):
                     yield Path(fp)
 

@@ -90,7 +90,7 @@ cd injectguard
 source .venv/bin/activate
 pip install -U pip
 pip install -e ".[all,dev]"
-injectguard --version          # prints 0.0.10
+injectguard --version          # prints 0.0.11
 ```
 
 `.[all,dev]` installs the desktop app, Outlook `.msg` support, and the test tools. For a smaller install without
@@ -169,7 +169,7 @@ injectguard scan /tmp/igtest/malicious -q    # 16 files: 15 MALICIOUS, 1 SUSPICI
 injectguard scan /tmp/igtest/clean -q        # summary only: 9 clean; exit code 0
 cp /tmp/igtest/malicious/white_text.pdf ~/Downloads/   # notification within ~2 seconds
 injectguard history --limit 3                # newest row shows source "realtime"
-pytest -q                                    # 184 passed
+pytest -q                                    # 187 passed
 ```
 
 Then open `tests/web/malicious.html` in Chrome: the toolbar icon shows a red **!**, a warning banner appears, and
@@ -342,7 +342,7 @@ python tools/sync_rules.py && pytest -q
 ## Tests
 
 ```bash
-pytest -q                                  # 184 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
+pytest -q                                  # 187 tests: all formats, false-positive set, API security, watcher, scheduler, quarantine, AI stub, browser/desktop parity
 python tests/browser_e2e.py /tmp/shots     # real Chromium with the extension loaded and paired (needs: playwright install chromium)
 python tests/make_samples.py /tmp/igtest   # build the malicious + clean sample files
 ```
@@ -371,6 +371,9 @@ Not in a position to tip? Starring the repo, reporting false alarms, and telling
 
 ## Changelog
 
+- **0.0.11** — Password-protected or rights-managed Office files (and old .doc/.xls/.ppt files renamed to the new
+  extensions) are reported as skipped with a plain reason instead of "File is not a zip file". Office and
+  LibreOffice lock files (`~$name.xlsx`, `.~lock.*`) are no longer scanned.
 - **0.0.10** — Fixes a crash on documents with long runs of a single invisible character (common in Word and web
   exports). One file that fails to scan is now reported as an error and the folder or scheduled scan carries on.
 - **0.0.9** — Files InjectGuard can't look inside are reported as **skipped** with a plain reason instead of

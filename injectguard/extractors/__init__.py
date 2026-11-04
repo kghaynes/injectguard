@@ -15,6 +15,8 @@ EXT_KIND = {
     ".yaml": "text", ".yml": "text", ".rtf": "text", ".eml": "eml", ".msg": "msg", ".zip": "zip",
 }
 SUPPORTED = set(EXT_KIND)
+OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"   # Microsoft compound file (old Office, encrypted Office)
+LOCK_PREFIXES = ("~$", ".~lock.")                    # Office / LibreOffice owner files left next to open documents
 
 
 def detect_kind(name: str, data: bytes) -> str:
@@ -54,6 +56,11 @@ def extract(name: str, data: bytes) -> Tuple[str, List[Segment], List[Tuple[str,
     """Returns (kind, segments, child_files, notes)."""
     kind = detect_kind(name, data)
     loc = PurePath(name).name or name
+    if kind in ("docx", "xlsx", "pptx") and data[:8] == OLE_MAGIC:
+        from ..engine import Unreadable
+        if "EncryptedPackage".encode("utf-16-le") in data:   # directory entries can sit anywhere in the file
+            raise Unreadable("Password-protected or rights-managed Office file; its contents can't be checked")
+        raise Unreadable("Older Office format (.doc/.xls/.ppt) saved with a newer extension; not supported yet")
     children: List[Tuple[str, bytes]] = []
     notes: List[str] = []
     if kind == "pdf":
