@@ -78,4 +78,5 @@ def test_corrupt_file_is_error_not_clean(tmp_path):
     assert scan_file(p).verdict in ("error", "clean")
     p2 = tmp_path / "bad.docx"
     p2.write_bytes(b"PK\x03\x04 not really")
-    assert scan_file(p2).verdict == "error"
+    r2 = scan_file(p2)
+    assert r2.verdict == "skipped" and "Damaged or incomplete" in r2.errors[0]
