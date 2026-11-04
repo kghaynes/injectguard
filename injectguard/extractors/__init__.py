@@ -19,15 +19,41 @@ OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"   # Microsoft compound file (old
 LOCK_PREFIXES = ("~$", ".~lock.")                    # Office / LibreOffice owner files left next to open documents
 
 
-def detect_kind(name: str, data: bytes) -> str:
-    ext = PurePath(name).suffix.lower()
+OFFICE = ("docx", "xlsx", "pptx")
+
+
+def _sniff(data: bytes) -> str:
+    """What the bytes actually are, ignoring the file name."""
     head = data[:8]
     if head.startswith(b"%PDF"):
         return "pdf"
-    if head.startswith(b"\xd0\xcf\x11\xe0") and ext == ".msg":
-        return "msg"
+    if head == OLE_MAGIC:
+        return "ole"
     if head.startswith(b"PK"):
-        if ext in EXT_KIND and EXT_KIND[ext] in ("docx", "xlsx", "pptx"):
+        return "zip"
+    body = data[:4096].lstrip(b"\xef\xbb\xbf \t\r\n").lower()
+    if body.startswith((b"<!doctype html", b"<html", b"<table", b"<meta", b"<head")) or b"<html" in body[:1024]:
+        return "html"
+    if body.startswith(b"<?xml"):
+        return "xml"
+    for enc in ("utf-8", "utf-16"):
+        try:
+            data[:4096].decode(enc)
+            return "text"
+        except UnicodeDecodeError:
+            continue
+    return "binary"
+
+
+def detect_kind(name: str, data: bytes) -> str:
+    ext = PurePath(name).suffix.lower()
+    real = _sniff(data)
+    if real == "pdf":
+        return "pdf"
+    if real == "ole" and ext == ".msg":
+        return "msg"
+    if real == "zip":
+        if ext in EXT_KIND and EXT_KIND[ext] in OFFICE:
             return EXT_KIND[ext]
         try:
             names = zipfile.ZipFile(io.BytesIO(data)).namelist()
@@ -40,27 +66,30 @@ def detect_kind(name: str, data: bytes) -> str:
         except zipfile.BadZipFile:
             pass
         return "zip"
+    if ext in EXT_KIND and EXT_KIND[ext] in OFFICE:
+        # Named like a new Office file but isn't one: go by what the content really is.
+        return {"ole": "office-ole", "html": "html", "xml": "text", "text": "text"}.get(real, "office-unknown")
     if ext in EXT_KIND:
         return EXT_KIND[ext]
-    sniff = data[:512].lstrip().lower()
-    if sniff.startswith(b"<!doctype html") or sniff.startswith(b"<html"):
+    if real == "html":
         return "html"
-    try:
-        data[:4096].decode("utf-8")
+    if real in ("text", "xml"):
         return "text"
-    except UnicodeDecodeError:
-        return "unknown"
+    return "unknown"
 
 
 def extract(name: str, data: bytes) -> Tuple[str, List[Segment], List[Tuple[str, bytes]], List[str]]:
     """Returns (kind, segments, child_files, notes)."""
     kind = detect_kind(name, data)
     loc = PurePath(name).name or name
-    if kind in ("docx", "xlsx", "pptx") and data[:8] == OLE_MAGIC:
+    if kind in ("office-ole", "office-unknown"):
         from ..engine import Unreadable
-        if "EncryptedPackage".encode("utf-16-le") in data:   # directory entries can sit anywhere in the file
+        if kind == "office-ole" and "EncryptedPackage".encode("utf-16-le") in data:
             raise Unreadable("Password-protected or rights-managed Office file; its contents can't be checked")
-        raise Unreadable("Older Office format (.doc/.xls/.ppt) saved with a newer extension; not supported yet")
+        if kind == "office-ole":
+            raise Unreadable("Older Office format (.doc/.xls/.ppt) saved with a newer extension; not supported yet")
+        raise Unreadable(f"Named {PurePath(name).suffix} but isn't an Office file (starts with {data[:8].hex(' ')}); "
+                         "not scanned")
     children: List[Tuple[str, bytes]] = []
     notes: List[str] = []
     if kind == "pdf":

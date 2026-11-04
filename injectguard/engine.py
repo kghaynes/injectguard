@@ -9,6 +9,7 @@ import socket
 import time
 import urllib.parse
 import urllib.request
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, List, Optional
@@ -46,9 +47,10 @@ def scan_bytes(name: str, data: bytes, settings: Optional[Settings] = None, dept
     try:
         kind, segs, children, notes = extract(name, data)
         res.kind = kind
-    except Unreadable as e:
+    except (Unreadable, zipfile.BadZipFile) as e:
         res.verdict = "skipped"
-        res.errors.append(str(e))
+        res.errors.append(str(e) if isinstance(e, Unreadable) else
+                          "Damaged or incomplete file (not a valid Office/zip file); not scanned")
         res.scanned_at = _now()
         res.duration_ms = int((time.perf_counter() - t0) * 1000)
         return res
