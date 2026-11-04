@@ -197,6 +197,8 @@ def decode_zero_width(raw: str) -> str:
     if len(zw) < 16:
         return ""
     syms = sorted(set(zw), key=lambda c: -zw.count(c))
+    if len(syms) < 2:          # one repeated character carries no binary message
+        return ""
     best = ""
     if len(syms) >= 3:
         for sep in syms:
