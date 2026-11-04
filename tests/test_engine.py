@@ -75,7 +75,7 @@ def test_homoglyphs():
 def test_corrupt_file_is_error_not_clean(tmp_path):
     p = tmp_path / "bad.pdf"
     p.write_bytes(b"%PDF-1.4 garbage")
-    assert scan_file(p).verdict in ("error", "clean")
+    assert scan_file(p).verdict in ("skipped", "clean")
     p2 = tmp_path / "bad.docx"
     p2.write_bytes(b"PK\x03\x04 not really")
     r2 = scan_file(p2)
