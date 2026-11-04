@@ -68,7 +68,8 @@ def test_settings_migration_moves_alerts_to_malicious(tmp_path, monkeypatch):
 
 
 def test_stray_zero_width_characters_in_many_cells_are_not_malicious():
-    segs = [Segment(f"Configure DNS and{'​' * n} ping tools.example.com", f"sheet {i}", "visible")
+    zw = "\u200b"
+    segs = [Segment("Configure DNS and" + zw * n + " ping tools.example.com", "sheet %d" % i, "visible")
             for i, n in enumerate((3, 4, 5, 19))]
     f, _ = scan_segments(segs)
     assert overall(f)[1] == "clean", [(x.rule_id, x.score) for x in f]
