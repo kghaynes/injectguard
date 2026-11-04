@@ -139,6 +139,7 @@
     if (zw.length < 16) return '';
     const count = c => zw.filter(x => x === c).length;
     const syms = [...new Set(zw)].sort((a, b) => count(b) - count(a));
+    if (syms.length < 2) return '';   // one repeated character carries no binary message
     let best = '';
     const take = t => { if (plausible(t) && t.length > best.length) best = t; };
     if (syms.length >= 3) {

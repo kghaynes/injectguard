@@ -58,7 +58,14 @@ def scan_bytes(name: str, data: bytes, settings: Optional[Settings] = None, dept
         res.scanned_at = _now()
         res.duration_ms = int((time.perf_counter() - t0) * 1000)
         return res
-    findings, n = scan_segments(segs)
+    try:
+        findings, n = scan_segments(segs)
+    except Exception as e:  # noqa: BLE001  -- one odd file must never stop a folder or scheduled scan
+        res.verdict = "error"
+        res.errors.append(f"Scanner error (please report): {type(e).__name__}: {e}")
+        res.scanned_at = _now()
+        res.duration_ms = int((time.perf_counter() - t0) * 1000)
+        return res
     res.segments_scanned = n
     for note in notes:
         if "JavaScript" in note:
@@ -213,4 +220,8 @@ def scan_tree(roots: Iterable[str], settings: Optional[Settings] = None,
             progress(i, len(files), str(f))
         if skip_unchanged and skip_unchanged(f):
             continue
-        yield scan_file(f, settings)
+        try:
+            yield scan_file(f, settings)
+        except Exception as e:  # noqa: BLE001  -- keep going; report this file and move on
+            yield ScanResult(target=str(f), kind="unknown", verdict="error",
+                             errors=[f"Scanner error (please report): {type(e).__name__}: {e}"], scanned_at=_now())
