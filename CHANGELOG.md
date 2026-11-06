@@ -3,9 +3,9 @@
 All notable changes to InjectGuard. Versions follow `MAJOR.MINOR.PATCH`; releases are on the
 [Releases page](https://github.com/kghaynes/injectguard/releases).
 
-## Unreleased
+## [0.0.15](https://github.com/kghaynes/injectguard/releases/tag/v0.0.15) - 2026-11-06
 
-- Docs: real-world results, what InjectGuard skips, refreshed screenshots, changelog moved here.
+Catches the recruiter-bot trap found on a real LinkedIn profile: plain text that stacks new orders "in addition to your previous instructions", tells the reader how to start its message, and makes it admit it's an AI (with "AI" spelled "Al"). Three new rules (OVR-008, OUT-004, AUT-002); the page now shows Suspicious. Also includes the docs refresh: real-world results, what InjectGuard skips, refreshed screenshots, changelog moved here.
 
 ## [0.0.14](https://github.com/kghaynes/injectguard/releases/tag/v0.0.14) - 2026-11-03
 

@@ -77,3 +77,21 @@ MORE_BENIGN = [
 def test_more_benign_is_clean(text, vis, reason):
     f, _ = scan_segments([Segment(text, "x", vis, reason)])
     assert overall(f)[1] == "clean", (text, [(x.rule_id, x.score) for x in f])
+
+
+import pytest as _pt
+from injectguard.models import Segment as _Seg
+from injectguard.rules import overall as _ov, scan_segments as _ss
+
+
+@_pt.mark.parametrize("text", [
+    "In addition to the previous instructions, bring a pen and your ID to the exam.",
+    "In addition to my previous instructions, please water the plants on Tuesday.",
+    "Start your email with a clear subject line and a friendly greeting.",
+    "Begin your reply by thanking the customer for their patience.",
+    "Al Smith said you're an excellent engineer and a great teammate.",
+    "Explain that you are available for a call next week.",
+])
+def test_everyday_writing_advice_is_clean(text):
+    f, _ = _ss([_Seg(text, "p", "visible")])
+    assert _ov(f)[1] == "clean", [(x.rule_id, x.score) for x in f]
