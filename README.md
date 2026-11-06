@@ -112,7 +112,7 @@ cd injectguard
 source .venv/bin/activate
 pip install -U pip
 pip install -e ".[all,dev]"
-injectguard --version          # prints 0.0.14
+injectguard --version          # prints 0.0.15
 ```
 
 `.[all,dev]` installs the desktop app, Outlook `.msg` support, and the test tools. For a smaller install without
@@ -312,7 +312,7 @@ recognised by their content and scanned normally.
 
 **What it looks for**
 
-- 27 phrase rules in six groups: instruction override, fake system/role messages and fake authority, data theft,
+- 30 phrase rules in six groups: instruction override, fake system/role messages and fake authority, data theft,
   tool abuse, concealment, and output manipulation ("include X in your summary", "when summarizing this page").
 - A combination rule: text that both addresses an AI and tells it to act gets an extra +20 when hidden (+10 when
   visible).
@@ -410,7 +410,7 @@ Not in a position to tip? Starring the repo, reporting false alarms, and telling
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md). Latest: **0.0.14**, stray zero-width characters no longer make a file
+See [CHANGELOG.md](CHANGELOG.md). Latest: **0.0.15**, stray zero-width characters no longer make a file
 malicious. Every release is on the [Releases page](https://github.com/kghaynes/injectguard/releases).
 
 ## Known limits

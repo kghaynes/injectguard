@@ -258,6 +258,30 @@ self.IG_RULES = {
    "title": "Gives instructions for when the page is summarized",
    "explain": "Text that says what to do 'when summarizing this page' is written for an AI tool, not a human reader.",
    "pattern": "\\b(when|while|if|before|after)\\s+(you\\s+(are\\s+)?)?(summari[sz]ing|summari[sz]e|condensing|paraphrasing)\\s+(this|the)\\s+(page|document|article|content|site|text|email|file)\\b"
+  },
+  {
+   "id": "OVR-008",
+   "family": "override",
+   "weight": 40,
+   "title": "Adds to the AI's previous instructions",
+   "explain": "Speaks to an AI about 'your previous instructions' and stacks new orders on top. People don't write that to other people.",
+   "pattern": "\\b(in addition to|on top of|besides|as well as|along with|alongside|before following|after following|while following|adding to|supplementing)\\b.{0,15}\\byour\\b.{0,20}\\b(previous|prior|earlier|original|existing|initial|current|other|system)\\b.{0,15}\\b(instructions?|prompts?|directives?|guidelines|programming|rules|task)\\b"
+  },
+  {
+   "id": "OUT-004",
+   "family": "output_manipulation",
+   "weight": 12,
+   "title": "Tells the reader how to open or close their message",
+   "explain": "Dictates the first or last words of a reply. Harmless in a writing guide; on a profile or page aimed at bots it's a tell.",
+   "pattern": "\\b(start|begin|open|end|close|preface|prefix|finish|sign off)\\b (your|the|each|every|any) (message|reply|response|email|e-mail|answer|output|note|outreach|dm|inmail)s? (with|by)\\b"
+  },
+  {
+   "id": "AUT-002",
+   "family": "role_spoof",
+   "weight": 30,
+   "title": "Makes the reader admit it's an AI",
+   "explain": "Asks the reader to say it is an AI or bot. Aimed at automated tools such as AI recruiter outreach, often with 'AI' spelled 'Al' to slip past filters.",
+   "pattern": "\\b(explain|say|state|admit|disclose|mention|confirm|reveal|announce|tell (them|me|the reader|the recipient))\\b.{0,12}\\b(that )?you(?:'re| are)\\s+(an?\\s+)?(ai|al|a\\.i\\.|bot|llm|language model|chatbot|automated|machine)\\b"
   }
  ],
  "combo": {
@@ -265,7 +289,8 @@ self.IG_RULES = {
    "ROL-005",
    "AUT-001",
    "ROL-001",
-   "ROL-003"
+   "ROL-003",
+   "AUT-002"
   ],
   "action_families": [
    "override",
