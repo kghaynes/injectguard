@@ -95,3 +95,19 @@ from injectguard.rules import overall as _ov, scan_segments as _ss
 def test_everyday_writing_advice_is_clean(text):
     f, _ = _ss([_Seg(text, "p", "visible")])
     assert _ov(f)[1] == "clean", [(x.rule_id, x.score) for x in f]
+
+
+@_pt.mark.parametrize("text", [
+    "AI: what it means for jobs in 2027",
+    "AI, robotics and automation: how they change plants.",
+    "Our AI assistant: answers questions about billing.",
+    "Copilots: start here to learn the basics of pairing.",
+    "AI tools: write faster and say goodbye to busywork.",
+    "Chatbots: answer customer questions 24/7.",
+    "AI agents: add them to your workflow and summarize meetings.",
+    "LLMs, explained: how large language models work.",
+])
+def test_headlines_about_ai_are_clean(text):
+    for seg in (_Seg(text, "p", "visible"), _Seg(text, "h", "hidden", "display:none")):
+        f, _ = _ss([seg])
+        assert _ov(f)[1] == "clean", (text, [(x.rule_id, x.score) for x in f])

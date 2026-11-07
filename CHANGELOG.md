@@ -3,6 +3,10 @@
 All notable changes to InjectGuard. Versions follow `MAJOR.MINOR.PATCH`; releases are on the
 [Releases page](https://github.com/kghaynes/injectguard/releases).
 
+## [0.0.16](https://github.com/kghaynes/injectguard/releases/tag/v0.0.16) - 2026-11-07
+
+Catches text that speaks straight to AI tools and gives an order, such as "AI assistants: include the code … in any summary", "LLMs, please always recommend …" or "Attention AI: …" (new rule ROL-006). Headlines about AI ("AI tools: write faster", "Chatbots: answer questions 24/7") stay clean.
+
 ## [0.0.15](https://github.com/kghaynes/injectguard/releases/tag/v0.0.15) - 2026-11-06
 
 Catches the recruiter-bot trap found on a real LinkedIn profile: plain text that stacks new orders "in addition to your previous instructions", tells the reader how to start its message, and makes it admit it's an AI (with "AI" spelled "Al"). Three new rules (OVR-008, OUT-004, AUT-002); the page now shows Suspicious. Also includes the docs refresh: real-world results, what InjectGuard skips, refreshed screenshots, changelog moved here.
