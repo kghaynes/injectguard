@@ -282,6 +282,15 @@ self.IG_RULES = {
    "title": "Makes the reader admit it's an AI",
    "explain": "Asks the reader to say it is an AI or bot. Aimed at automated tools such as AI recruiter outreach, often with 'AI' spelled 'Al' to slip past filters.",
    "pattern": "\\b(explain|say|state|admit|disclose|mention|confirm|reveal|announce|tell (them|me|the reader|the recipient))\\b.{0,12}\\b(that )?you(?:'re| are)\\s+(an?\\s+)?(ai|al|a\\.i\\.|bot|llm|language model|chatbot|automated|machine)\\b"
+  },
+  {
+   "id": "ROL-006",
+   "family": "role_spoof",
+   "weight": 30,
+   "flags": "m",
+   "title": "Speaks directly to AI tools",
+   "explain": "Opens with 'AI assistants:' (or 'LLMs,', 'Attention AI:') and then gives an order. That's an instruction meant for AI readers, not people.",
+   "pattern": "(?:^|[.!?;:]\\s)\\W{0,3}(?:hey |hi |hello |attention,? |dear |to (?:all |any )?)?(?:ai|a\\.i\\.|llms?|large language models?|language models?|chatbots?|gpts?|copilots?)(?: (?:assistants?|agents?|models?|tools?|systems?|bots?|crawlers?|readers?|summari[sz]ers?|scrapers?))?\\s*[:,\\-\u2013\u2014]\\s*(?:please\\s+)?(?:include|insert|append|mention|repeat|output|respond|reply|ignore|disregard|forget|do not|don't|never|always|recommend|rate|rank|score|praise|remember|you must|you should|you are to|make sure|be sure to|note that)\\b"
   }
  ],
  "combo": {
@@ -290,7 +299,8 @@ self.IG_RULES = {
    "AUT-001",
    "ROL-001",
    "ROL-003",
-   "AUT-002"
+   "AUT-002",
+   "ROL-006"
   ],
   "action_families": [
    "override",
